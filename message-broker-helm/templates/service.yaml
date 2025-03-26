@@ -1,0 +1,13 @@
+apiVerson: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-loadbalancer
+spec:
+  type: LoadBalancer
+  selector:
+    app: {{ .Release.Name }}
+  ports:
+  - protocol: TCP
+    port: 3200
+    targetPort: 3000
+    nodePort: 30010
