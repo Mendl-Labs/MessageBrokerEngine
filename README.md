@@ -1,4 +1,4 @@
-# 📨 Message Broker Server (Rust)
+# 📨 Message Broker Engine
 
 A lightweight, high-performance TCP-based message broker server written in Rust using Protobuf for communication. This server handles subscription and publication to topics over persistent TCP connections and provides graceful shutdown and concurrency management.
 
