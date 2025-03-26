@@ -1,0 +1,8 @@
+# Ignore lock files
+Cargo.lock
+
+# Ignore build artifacts
+target/
+
+# Ignore sensitive or environment-specific files
+appsettings.json

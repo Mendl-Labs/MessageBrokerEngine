@@ -1,0 +1,4 @@
+[workspace]
+resolver = "2"
+
+members = ["hostbuilder", "subscriber", "program", "publisher", "topicmanager", "protocol"]

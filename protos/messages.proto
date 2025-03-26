@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package broker.messages;
+
+message BigDecimal {
+    int64 digits = 1;
+    int64 scale = 2;
+}
+
+message Order {
+    string unique_id = 1;
+    string symbol = 2;
+    string exchange = 3;
+    BigDecimal price_level = 7;
+    BigDecimal quantity = 8;
+    string side = 9;
+    string event = 10;
+}
+
+messge Orders {
+    repeated Order orders = 1;
+}
+
+message OrderBook {
+    string symbol = 1;
+    string exchange = 2;
+    repeated Order orders = 3;
+}
+
+message Trade {
+    string symbol = 1;
+    string exchange = 2;
+    string side = 3;
+    BigDecimal price = 4;
+    BigDecimal qty = 5;
+    string ord_type = 6;
+    uint64 trade_id = 7;
+    string timestamp = 8;
+}
+
+message Trades {
+    repeated Trade trades = 1;
+}
+
+message MarketMessage {
+    oneof payload {
+        OrderBook order_book_payload = 1;
+        Trades trades_payload = 2;
+        Orders orders_paylaod = 3;
+    }
+}
+
+message SubscribeRequest {
+    repeated string topics = 1;
+}
+
+message PublishRequest {
+    repeated string topics = 1;
+    oneof payload {
+        MarketMessage market_payload = 2;
+    }
+}
+
+message BrokerMessage {
+    oneof payload {
+        SubscribeRequest subscribe_request = 1;
+        PublishRequest publish_request = 2;
+    }
+}
