@@ -16,12 +16,6 @@ message Orders {
     repeated Order orders = 1;
 }
 
-message OrderBook {
-    string symbol = 1;
-    string exchange = 2;
-    repeated Order orders = 3;
-}
-
 message Trade {
     string symbol = 1;
     string exchange = 2;
@@ -39,9 +33,8 @@ message Trades {
 
 message MarketMessage {
     oneof payload {
-        OrderBook order_book_payload = 1;
-        Trades trades_payload = 2;
-        Orders orders_paylaod = 3;
+        Trades trades_payload = 1;
+        Orders orders_paylaod = 2;
     }
 }
 
