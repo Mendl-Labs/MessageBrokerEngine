@@ -2,22 +2,17 @@ syntax = "proto3";
 
 package broker.messages;
 
-message BigDecimal {
-    int64 digits = 1;
-    int64 scale = 2;
-}
-
 message Order {
     string unique_id = 1;
     string symbol = 2;
     string exchange = 3;
-    BigDecimal price_level = 7;
-    BigDecimal quantity = 8;
+    float price_level = 7;
+    float quantity = 8;
     string side = 9;
     string event = 10;
 }
 
-messge Orders {
+message Orders {
     repeated Order orders = 1;
 }
 
@@ -31,8 +26,8 @@ message Trade {
     string symbol = 1;
     string exchange = 2;
     string side = 3;
-    BigDecimal price = 4;
-    BigDecimal qty = 5;
+    float price = 4;
+    float qty = 5;
     string ord_type = 6;
     uint64 trade_id = 7;
     string timestamp = 8;

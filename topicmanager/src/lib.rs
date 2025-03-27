@@ -102,7 +102,7 @@ impl TopicManagerTrait for TopicManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use protocol::broker::messages::{market_message::{self}, publish_request, BigDecimal, MarketMessage, Order, OrderBook, PublishRequest, Trade, Trades};
+    use protocol::broker::messages::{market_message::{self}, publish_request, MarketMessage, Order, Orders, PublishRequest, Trade, Trades};
     use tokio::net::TcpListener;
     use uuid::{self, Uuid};
 
@@ -150,34 +150,26 @@ mod tests {
 
         let topics = vec!["test_topic"];
 
-        let big_decimal_price = BigDecimal {
-            digits: 24,
-            scale: 4,
-        };
+        let big_decimal_price = 24.0;
 
-        let bid_decimal_quantity = BigDecimal {
-            digits: 10,
-            scale: 0,
-        };
+        let bid_decimal_quantity = 10.0;
 
         let order = Order {
             unique_id: Uuid::new_v4().to_string(),
             symbol: "BTC/USD".to_string(),
             exchange: "binance".to_string(),
-            price_level: Some(big_decimal_price),
-            quantity: Some(bid_decimal_quantity),
+            price_level: big_decimal_price,
+            quantity: bid_decimal_quantity,
             side: "BUY".to_string(),
             event: "NEW".to_string(),
         };
 
-        let orderbook = OrderBook {
-            symbol: "BTC/USD".to_string(),
-            exchange: "binance".to_string(),
+        let orders = Orders {
             orders: vec![order],
         };
 
         let market_message = MarketMessage {
-            payload: Some(market_message::Payload::OrderBookPayload(orderbook)),
+            payload: Some(market_message::Payload::OrdersPaylaod(orders)),
         };
 
         let message = PublishRequest {
@@ -206,22 +198,16 @@ mod tests {
 
         let topics = vec!["test_topic"];
 
-        let big_decimal_price = BigDecimal {
-            digits: 24,
-            scale: 4,
-        };
+        let big_decimal_price = 24.0;
 
-        let bid_decimal_quantity = BigDecimal {
-            digits: 10,
-            scale: 0,
-        };
+        let bid_decimal_quantity = 10.0;
 
         let trade = Trade {
             symbol: "BTC/USD".to_string(),
             exchange: "binance".to_string(),
             side: "BUY".to_string(),
-            price: Some(big_decimal_price),
-            qty: Some(bid_decimal_quantity),
+            price: big_decimal_price,
+            qty: bid_decimal_quantity,
             ord_type: "LIMIT".to_string(),
             trade_id: 1234567890,
             timestamp: "".to_string(),
