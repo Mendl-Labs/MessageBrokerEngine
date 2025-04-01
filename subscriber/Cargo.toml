@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.86"
 async-trait = "0.1"
-libc = "0.2.171"
 mockall = "0.12.1"
 prost = "0.13.1"
 protocol = { path = "../protocol" }
