@@ -1,2 +1,145 @@
-# General settings
-replicaCount: 3
+# Production Environment Configuration
+# Maximum performance and high availability
+
+replicaCount: 5
+
+image:
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+# Production resources - maximum performance
+resources:
+  limits:
+    cpu: "16"
+    memory: 32Gi
+  requests:
+    cpu: "8"
+    memory: 16Gi
+
+# Ultra-performance optimizations enabled
+performance:
+  cpuAffinity: true
+  numaAware: true
+  hugePagesEnabled: true
+  hugePagesSize: "2Gi"
+
+# Production broker configuration - ultra-high performance
+broker:
+  maxConnections: 50000
+  maxTopics: 500000
+  flushIntervalMs: 1  # Ultra-low latency
+  workerThreads: 64
+  enableBatching: true
+  batchSize: 200
+
+# Production autoscaling - aggressive scaling
+autoscaling:
+  enabled: true
+  minReplicas: 5
+  maxReplicas: 50
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 85
+  customMetrics:
+    - type: Pods
+      pods:
+        metric:
+          name: messages_per_second
+        target:
+          type: AverageValue
+          averageValue: "100000"
+
+# Production storage - high performance
+persistence:
+  enabled: true
+  size: 500Gi
+  storageClass: "ultra-fast-nvme"
+
+# Production logging - minimal overhead
+logging:
+  level: warn
+  format: json
+  output: stdout
+
+# Network Load Balancer for ultra-low latency
+service:
+  type: LoadBalancer
+  port: 8080
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+
+# Production security
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+# High-performance node selection
+nodeSelector:
+  node.kubernetes.io/instance-type: "c5n.metal"
+  trading.company.com/performance: "ultra-high"
+
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "trading"
+    effect: "NoSchedule"
+  - key: "performance"
+    operator: "Equal"
+    value: "critical"
+    effect: "NoSchedule"
+
+# Anti-affinity for high availability
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - ultra-message-broker
+        topologyKey: kubernetes.io/hostname
+
+# Network policies for security
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+
+# Production environment variables
+env:
+  - name: RUST_LOG
+    value: "warn"
+  - name: RUST_BACKTRACE
+    value: "0"
+  - name: ENVIRONMENT
+    value: "production"
+  - name: PERFORMANCE_MODE
+    value: "ultra"
+
+# Production monitoring
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 5s
+    scrapeTimeout: 3s
+
+# Pod disruption budget - high availability
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 3
+
+# RBAC for production security
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods", "services", "endpoints"]
+      verbs: ["get", "list", "watch"]

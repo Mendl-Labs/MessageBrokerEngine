@@ -1,2 +1,75 @@
-# General settings
+# Development Environment Configuration
+# Optimized for development and testing
+
 replicaCount: 1
+
+image:
+  tag: "dev-latest"
+  pullPolicy: Always
+
+# Reduced resources for development
+resources:
+  limits:
+    cpu: "2"
+    memory: 4Gi
+  requests:
+    cpu: "1"
+    memory: 2Gi
+
+# Development broker configuration
+broker:
+  maxConnections: 1000
+  maxTopics: 10000
+  flushIntervalMs: 10  # Relaxed for development
+  workerThreads: 8
+  enableBatching: true
+  batchSize: 50
+
+# Disabled autoscaling for stable development
+autoscaling:
+  enabled: false
+
+# Simplified storage
+persistence:
+  enabled: false
+
+# Development logging - more verbose
+logging:
+  level: debug
+  format: pretty
+  output: stdout
+
+# Development service configuration
+service:
+  type: NodePort
+  port: 8080
+  nodePort: 30080
+
+# Ingress for local development
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: message-broker.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Relaxed security for development
+securityContext:
+  runAsNonRoot: false
+  readOnlyRootFilesystem: false
+
+# No node selection constraints
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Development environment variables
+env:
+  - name: RUST_LOG
+    value: "debug"
+  - name: RUST_BACKTRACE
+    value: "full"
+  - name: ENVIRONMENT
+    value: "development"

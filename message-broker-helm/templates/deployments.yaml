@@ -1,23 +1,125 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.appName }}
+  name: {{ include "ultra-message-broker.fullname" . }}
   labels:
-    app: {{ .Values.appName }}
+    {{- include "ultra-message-broker.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }} # Adjust based on your scaling needs
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
-      app: {{ .Values.appName }}
+      {{- include "ultra-message-broker.selectorLabels" . | nindent 6 }}
   template:
     metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.broker.metricsPort }}"
       labels:
-        app: {{ .Values.appName }}
+        {{- include "ultra-message-broker.selectorLabels" . | nindent 8 }}
+        version: {{ .Values.image.tag | quote }}
     spec:
+      {{- with .Values.image.pullSecrets }}
       imagePullSecrets:
-        - name: acr-secret # Secret for pulling private images
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ultra-message-broker.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.performance.hugePagesEnabled }}
+      volumes:
+        - name: hugepages
+          emptyDir:
+            medium: HugePages-{{ .Values.performance.hugePagesSize }}
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "ultra-message-broker.fullname" . }}-data
+        {{- end }}
+        {{- if .Values.configMap.create }}
+        - name: config
+          configMap:
+            name: {{ include "ultra-message-broker.fullname" . }}-config
+        {{- end }}
+      {{- end }}
       containers:
-        - name: {{ .Values.appName }}
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: broker
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.broker.metricsPort }}
+              protocol: TCP
+            - name: health
+              containerPort: {{ .Values.broker.healthcheckPort }}
+              protocol: TCP
+          env:
+            {{- toYaml .Values.env | nindent 12 }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          {{- if .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.performance.hugePagesEnabled }}
+            - name: hugepages
+              mountPath: /dev/hugepages
+            {{- end }}
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
+            {{- if .Values.configMap.create }}
+            - name: config
+              mountPath: /etc/config
+              readOnly: true
+            {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.performance.cpuAffinity }}
+      # CPU affinity annotations for ultra-low latency
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+        scheduler.alpha.kubernetes.io/preferred-max-skew: "1"
+      {{- end }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }} # Replace with your image
           ports:
             - containerPort: 3000 # Replace with your app's port

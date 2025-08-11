@@ -31,10 +31,26 @@ message Trades {
     repeated Trade trades = 1;
 }
 
+message Wallet {
+    string symbol = 1;
+    float balance = 2;
+}
+
+message Wallets {
+    string exchange = 1;
+    repeated Wallet wallets = 2;
+}
+
 message MarketMessage {
     oneof payload {
         Trades trades_payload = 1;
-        Orders orders_paylaod = 2;
+        Orders orders_payload = 2;
+    }
+}
+
+message PortfolioMessage {
+    oneof payload {
+        Wallets wallets_payload = 1;
     }
 }
 
@@ -46,6 +62,7 @@ message PublishRequest {
     repeated string topics = 1;
     oneof payload {
         MarketMessage market_payload = 2;
+        PortfolioMessage portfolio_payload = 3;
     }
 }
 

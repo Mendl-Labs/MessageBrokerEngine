@@ -17,6 +17,20 @@ tokio = { version = "1.38.0", features = ["full"] }
 topicmanager = { path = "../topicmanager" }
 tracing = "0.1.41"
 winapi = "0.3.9"
+libc = "0.2"
+num_cpus = "1.16.0"
+crc32fast = "1.4"
+tempfile = "3.8"
+parking_lot = "0.12"
+
+[dev-dependencies]
+tokio-test = "0.4"
+serial_test = "3.0"
+crossbeam = "0.8"
+parking_lot = "0.12"
+memmap2 = "0.9"
+crossbeam-queue = "0.3"
+crossbeam-utils = "0.8"
 
 [build-dependencies]
 prost-build = "0.13.1"

@@ -1,2 +1,74 @@
-# General settings
+# QA Environment Configuration
+# Performance testing and quality assurance
+
 replicaCount: 2
+
+image:
+  tag: "qa-latest"
+  pullPolicy: IfNotPresent
+
+# QA resources - moderate performance
+resources:
+  limits:
+    cpu: "4"
+    memory: 8Gi
+  requests:
+    cpu: "2"
+    memory: 4Gi
+
+# QA broker configuration - production-like
+broker:
+  maxConnections: 5000
+  maxTopics: 50000
+  flushIntervalMs: 5  # Moderate performance
+  workerThreads: 16
+  enableBatching: true
+  batchSize: 75
+
+# Enabled autoscaling for load testing
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+
+# QA storage for testing persistence
+persistence:
+  enabled: true
+  size: 50Gi
+  storageClass: "standard-ssd"
+
+# QA logging - balanced detail
+logging:
+  level: info
+  format: json
+  output: stdout
+
+# Load balancer for load testing
+service:
+  type: LoadBalancer
+  port: 8080
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+
+# QA environment variables
+env:
+  - name: RUST_LOG
+    value: "info"
+  - name: RUST_BACKTRACE
+    value: "1"
+  - name: ENVIRONMENT
+    value: "qa"
+  - name: LOAD_TEST_MODE
+    value: "true"
+
+# Performance monitoring for QA
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 10s
+
+# Pod disruption budget for availability testing
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

@@ -3,3 +3,6 @@ pub mod broker {
         include!(concat!(env!("OUT_DIR"), "/broker.messages.rs"));
     }
 }
+
+pub mod compression;
+pub use compression::{MessageCompressor, CompressionConfig, CompressionAlgorithm, AdaptiveCompressor};

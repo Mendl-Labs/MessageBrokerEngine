@@ -1,13 +1,58 @@
-apiVerson: v1
+apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Release.Name }}-loadbalancer
+  name: {{ include "ultra-message-broker.fullname" . }}
+  labels:
+    {{- include "ultra-message-broker.labels" . | nindent 4 }}
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
-  type: LoadBalancer
-  selector:
-    app: {{ .Release.Name }}
+  type: {{ .Values.service.type }}
+  {{- if eq .Values.service.type "LoadBalancer" }}
+  {{- with .Values.service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- with .Values.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
   ports:
-  - protocol: TCP
-    port: 3200
-    targetPort: 3000
-    nodePort: 30010
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: broker
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
+    - port: {{ .Values.broker.metricsPort }}
+      targetPort: {{ .Values.broker.metricsPort }}
+      protocol: TCP
+      name: metrics
+    - port: {{ .Values.broker.healthcheckPort }}
+      targetPort: {{ .Values.broker.healthcheckPort }}
+      protocol: TCP
+      name: health
+  selector:
+    {{- include "ultra-message-broker.selectorLabels" . | nindent 4 }}
+---
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ultra-message-broker.fullname" . }}-metrics
+  labels:
+    {{- include "ultra-message-broker.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metrics
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.broker.metricsPort }}
+      targetPort: {{ .Values.broker.metricsPort }}
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "ultra-message-broker.selectorLabels" . | nindent 4 }}
+{{- end }}
