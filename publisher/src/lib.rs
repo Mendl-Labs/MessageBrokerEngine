@@ -5,8 +5,12 @@ use std::time::Duration;
 
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
-use tracing::{info, warn};
+use tracing::{info, warn, debug};
 use crossbeam::queue::SegQueue;
+
+// Import protocol messages for DataEngine compatibility
+use protocol::broker::messages::PublishRequest;
+use prost::Message;
 
 /// Cross-platform timestamp function optimized for ultra-low latency
 #[cfg(target_arch = "x86_64")]
@@ -466,6 +470,48 @@ impl Publisher {
             
             rt.block_on(async {
                 self.inner.publish_raw(data, "orders").await
+            })
+        } else {
+            Err(UltraFastError::SystemError)
+        }
+    }
+
+    /// Generic publish method for protobuf messages (DataEngine compatibility)
+    pub fn publish(&mut self, request: PublishRequest, topic: &str) -> Result<(), UltraFastError> {
+        if let Some(ref rt) = self.rt {
+            rt.block_on(async {
+                if let Some(payload) = request.payload {
+                    match payload {
+                        protocol::broker::messages::publish_request::Payload::MarketPayload(market_msg) => {
+                            debug!("Publishing market message to topic: {}", topic);
+                            // Serialize the protobuf message
+                            let mut buf = Vec::new();
+                            market_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
+                            
+                            // Add topic prefix for routing
+                            let message = format!("MARKET:{}:", topic).into_bytes();
+                            let mut full_message = message;
+                            full_message.extend_from_slice(&buf);
+                            
+                            self.inner.publish_raw(full_message, topic).await
+                        },
+                        protocol::broker::messages::publish_request::Payload::PortfolioPayload(portfolio_msg) => {
+                            debug!("Publishing portfolio message to topic: {}", topic);
+                            // Serialize the protobuf message
+                            let mut buf = Vec::new();
+                            portfolio_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
+                            
+                            // Add topic prefix for routing
+                            let message = format!("PORTFOLIO:{}:", topic).into_bytes();
+                            let mut full_message = message;
+                            full_message.extend_from_slice(&buf);
+                            
+                            self.inner.publish_raw(full_message, topic).await
+                        },
+                    }
+                } else {
+                    Err(UltraFastError::SerializationFailed)
+                }
             })
         } else {
             Err(UltraFastError::SystemError)

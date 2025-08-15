@@ -1,5 +1,3 @@
-use std::time::Duration;
-use std::sync::Arc;
 use tokio::time::sleep;
 use topicmanager::*;
 
@@ -99,7 +97,7 @@ fn test_topic_manager_metrics_calculations() {
     assert_eq!(msgs_per_topic, 10000.0);
     
     // Bytes per topic average
-    let bytes_per_topic = metrics.total_bytes / metrics.topic_count;
+    let bytes_per_topic = metrics.total_bytes / metrics.topic_count as u64;
     assert_eq!(bytes_per_topic, 104857); // Approximately 10MB/100
 }
 

@@ -47,6 +47,23 @@ pub enum UltraFastError {
     BufferTooSmall,
 }
 
+// Health metrics for subscriber monitoring
+#[derive(Debug, Clone)]
+pub struct HealthMetrics {
+    connected: bool,
+    error_count: u64,
+}
+
+impl HealthMetrics {
+    pub fn get_connected(&self) -> bool {
+        self.connected
+    }
+    
+    pub fn get_error_count(&self) -> u64 {
+        self.error_count
+    }
+}
+
 // Performance statistics for monitoring ultra-low latency
 #[derive(Default)]
 pub struct PerformanceStats {
@@ -167,6 +184,19 @@ pub struct UltraFastSubscriber {
     messages_received: AtomicU64,
 }
 
+impl Clone for UltraFastSubscriber {
+    fn clone(&self) -> Self {
+        Self {
+            subscriber_id: self.subscriber_id,
+            subscribed_topics: Arc::clone(&self.subscribed_topics),
+            is_running: AtomicBool::new(self.is_running.load(Ordering::Relaxed)),
+            performance_stats: Arc::clone(&self.performance_stats),
+            last_heartbeat: AtomicU64::new(self.last_heartbeat.load(Ordering::Relaxed)),
+            messages_received: AtomicU64::new(self.messages_received.load(Ordering::Relaxed)),
+        }
+    }
+}
+
 impl UltraFastSubscriber {
     pub fn new(subscriber_id: u64) -> Self {
         Self {
@@ -280,6 +310,7 @@ impl Drop for UltraFastSubscriber {
 }
 
 // Connection configuration for ultra-fast connections
+#[derive(Clone)]
 pub struct ConnectionConfig {
     pub address: String,
     pub port: u16,
@@ -330,6 +361,7 @@ impl ConnectionConfig {
 }
 
 // Subscriber with simplified interface for backward compatibility
+#[derive(Clone)]
 pub struct Subscriber {
     inner: UltraFastSubscriber,
     config: ConnectionConfig,
@@ -350,7 +382,7 @@ impl Subscriber {
 
     pub fn start(&mut self) -> Result<(), UltraFastError> {
         // Subscribe to all topics
-        for topic in &self.topics {
+        for _topic in &self.topics {
             // In a real implementation, this would establish network connections
             // and begin receiving messages from the broker
         }
@@ -373,5 +405,50 @@ impl Subscriber {
 
     pub fn stop(&mut self) {
         self.inner.stop();
+    }
+
+    // Additional methods needed by portfoliohandler
+    pub fn poll_all_messages(&self, max_messages: usize) -> Vec<(usize, UltraFastMessage)> {
+        let mut messages = Vec::new();
+        
+        for (idx, topic) in self.topics.iter().enumerate() {
+            if messages.len() >= max_messages {
+                break;
+            }
+            
+            if let Some(message) = self.inner.get_message_from_topic(topic) {
+                messages.push((idx, message));
+            }
+        }
+        
+        messages
+    }
+
+    pub fn get_health_metrics(&self) -> Result<HealthMetrics, UltraFastError> {
+        Ok(HealthMetrics {
+            connected: self.inner.is_running(),
+            error_count: 0, // Could track actual errors if implemented
+        })
+    }
+
+    pub fn is_stale(&self, max_age_ms: u64) -> bool {
+        let current_time = get_rdtsc();
+        let last_heartbeat = self.inner.get_last_heartbeat();
+        
+        // Convert max_age_ms to nanoseconds for comparison
+        let max_age_ns = max_age_ms * 1_000_000;
+        
+        current_time.saturating_sub(last_heartbeat) > max_age_ns
+    }
+
+    pub fn reconnect(&mut self) -> Result<(), UltraFastError> {
+        // In a real implementation, this would reconnect to the broker
+        self.inner.stop();
+        self.inner.start();
+        Ok(())
+    }
+
+    pub fn get_topic_name(&self, topic_idx: usize) -> Option<String> {
+        self.topics.get(topic_idx).cloned()
     }
 }

@@ -40,6 +40,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         cpu_affinity: vec![],
         use_huge_pages: false,
         shared_memory_size: 67108864, // 64MB
+        enable_wal: true,
+        wal_config: Default::default(),
+        flow_control_config: Default::default(),
+        enable_compression: true,
+        enable_intelligent_routing: true,
     };
 
     info!("Configuration: {}:{}, max_connections={}", 
@@ -72,15 +77,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("\n📊 FINAL PERFORMANCE REPORT");
     println!("═══════════════════════════════════════════════════════════");
     println!("⏱️  Total Runtime: {:.2}s", start_time.elapsed().as_secs_f64());
-    println!("📨 Messages Processed: {}", broker.get_messages_processed());
+    println!("📨 Messages Processed: {}", broker.get_stats().3); // messages from stats tuple
     
     // Print detailed metrics
-    let metrics = broker.get_metrics();
-    metrics.print_detailed_report();
+    let stats = broker.get_stats();
+    println!("📊 Broker Statistics:");
+    println!("   Active Connections: {}", stats.0);
+    println!("   Total Connections: {}", stats.1);
+    println!("   Messages Processed: {}", stats.3);
+    println!("   Bytes Processed: {}", stats.8);
     
     println!("🚀 Status: Successfully demonstrated ultra-fast message broker!");
 
-    broker.shutdown();
+    broker.stop();
     
     // Wait for clean shutdown
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;

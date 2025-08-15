@@ -48,7 +48,7 @@ async fn test_ultra_fast_metrics_creation() {
     assert_eq!(bytes, 0);
     assert_eq!(errors, 0);
     assert_eq!(rejections, 0);
-    assert_eq!(avg_time, 0.0);
+    assert_eq!(avg_time, 0);
     assert_eq!(cache_hits, 0);
     assert_eq!(cache_misses, 0);
     assert_eq!(peak_memory, 0);
@@ -74,7 +74,7 @@ async fn test_ultra_fast_metrics_record_operations() {
     assert_eq!(errors, 1);
     assert_eq!(rejections, 1);
     // Average time should be around 1500ns (1000 + 2000) / 2
-    assert!(avg_time > 1400.0 && avg_time < 1600.0);
+    assert!(avg_time > 1400 && avg_time < 1600);
 }
 
 #[tokio::test]
@@ -97,7 +97,7 @@ async fn test_broker_message_creation() {
 }
 
 #[tokio::test]
-#[serial]
+#[serial] 
 async fn test_message_broker_host_creation() {
     let config = BrokerConfig {
         host: "127.0.0.1".to_string(),
@@ -115,9 +115,12 @@ async fn test_message_broker_host_creation() {
         cpu_affinity: vec![],
         use_huge_pages: false,
         shared_memory_size: 1024 * 1024,
-    };
-    
-    let broker = MessageBrokerHost::new(config);
+        enable_wal: false,
+        wal_config: Default::default(),
+        flow_control_config: Default::default(),
+        enable_compression: false,
+        enable_intelligent_routing: false,
+    };    let broker = MessageBrokerHost::new(config);
     
     assert_eq!(broker.get_messages_processed(), 0);
 }
@@ -141,6 +144,11 @@ async fn test_message_broker_host_start_stop() {
         cpu_affinity: vec![],
         use_huge_pages: false,
         shared_memory_size: 1024 * 1024,
+        enable_wal: false,
+        wal_config: Default::default(),
+        flow_control_config: Default::default(),
+        enable_compression: false,
+        enable_intelligent_routing: false,
     };
     
     let broker = Arc::new(MessageBrokerHost::new(config));
@@ -255,6 +263,11 @@ async fn test_broker_config_validation() {
         cpu_affinity: vec![0, 1, 2, 3],
         use_huge_pages: false,
         shared_memory_size: 64 * 1024 * 1024,
+        enable_wal: true,
+        wal_config: Default::default(),
+        flow_control_config: Default::default(),
+        enable_compression: true,
+        enable_intelligent_routing: true,
     };
     
     let broker = MessageBrokerHost::new(valid_config);
@@ -287,7 +300,7 @@ async fn test_performance_under_load() {
     assert!(duration.as_millis() < 100, "Operations took too long: {:?}", duration);
     
     // Verify average processing time calculation
-    assert!(avg_time >= 0.0 && avg_time <= 1000.0);
+    assert!(avg_time <= 1000);
     
     println!("Completed {} operations in {:?}", num_operations, duration);
     println!("Average processing time: {:.2}ns", avg_time);

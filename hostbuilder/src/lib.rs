@@ -170,6 +170,22 @@ impl UltraFastMetrics {
     }
 
     #[inline(always)]
+    pub fn record_connection(&self) {
+        self.active_connections.fetch_add(1, Ordering::Relaxed);
+        self.total_connections.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[inline(always)]
+    pub fn record_error(&self) {
+        self.errors.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[inline(always)]
+    pub fn record_rejection(&self) {
+        self.rejected_connections.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[inline(always)]
     pub fn record_message(&self, processing_time_ns: u64, bytes: usize) {
         self.messages_processed.fetch_add(1, Ordering::Relaxed);
         self.bytes_processed.fetch_add(bytes as u64, Ordering::Relaxed);
@@ -222,6 +238,52 @@ impl UltraFastMetrics {
     }
 }
 
+// Broker metrics for display
+#[derive(Debug, Clone)]
+pub struct BrokerMetrics {
+    pub total_connections: u64,
+    pub active_connections: u64,
+    pub messages_processed: u64,
+    pub bytes_processed: u64,
+    pub errors: u64,
+    pub rejected_connections: u64,
+    pub avg_latency_ns: f64,
+    pub min_latency_ns: u64,
+    pub max_latency_ns: u64,
+}
+
+impl BrokerMetrics {
+    pub fn print_detailed_report(&self) {
+        println!("═══════════════════════════════════════════════════════════");
+        println!("📊 BROKER PERFORMANCE REPORT");
+        println!("═══════════════════════════════════════════════════════════");
+        println!("🔗 Connections:");
+        println!("   Total: {}", self.total_connections);
+        println!("   Active: {}", self.active_connections);
+        println!("   Rejected: {}", self.rejected_connections);
+        println!("📨 Messages:");
+        println!("   Processed: {}", self.messages_processed);
+        println!("   Bytes: {} MB", self.bytes_processed / (1024 * 1024));
+        println!("⚡ Performance:");
+        println!("   Avg Latency: {:.2} ns", self.avg_latency_ns);
+        println!("   Min Latency: {} ns", self.min_latency_ns);
+        println!("   Max Latency: {} ns", self.max_latency_ns);
+        println!("❌ Errors: {}", self.errors);
+        println!("═══════════════════════════════════════════════════════════");
+    }
+}
+
+// Message structure for compatibility
+#[derive(Debug, Clone)]
+pub struct BrokerMessage {
+    pub topic: String,
+    pub data: Vec<u8>,
+    pub timestamp: u64,
+    pub sequence: u64,
+    pub client_id: u64,
+    pub priority: u8,
+}
+
 impl Default for BrokerConfig {
     fn default() -> Self {
         Self {
@@ -248,6 +310,109 @@ impl Default for BrokerConfig {
             enable_compression: true,
             enable_intelligent_routing: true,
         }
+    }
+}
+
+impl BrokerConfig {
+    pub fn ultra_performance() -> Self {
+        Self {
+            host: "0.0.0.0".to_string(),
+            port: 8080,
+            max_connections: 50000,
+            worker_threads: 64,
+            connection_timeout: Duration::from_millis(CONNECTION_TIMEOUT_MS),
+            read_buffer_size: 1048576, // 1MB
+            max_message_size: MAX_MESSAGE_SIZE,
+            tcp_nodelay: true,
+            socket_reuse: true,
+            keepalive: true,
+            backlog: 4096,
+            busy_poll: true,
+            cpu_affinity: Vec::new(),
+            use_huge_pages: true,
+            shared_memory_size: 1024 * 1024 * 1024, // 1GB
+            
+            // New enhanced features
+            enable_wal: true,
+            wal_config: WALConfig::default(),
+            flow_control_config: BackpressureConfig::default(),
+            enable_compression: true,
+            enable_intelligent_routing: true,
+        }
+    }
+
+    /// Load configuration from environment variables with defaults
+    pub fn from_env() -> Result<Self, String> {
+        let mut config = Self::default();
+        
+        if let Ok(host) = std::env::var("BROKER_HOST") {
+            config.host = host;
+        }
+        
+        if let Ok(port) = std::env::var("BROKER_PORT") {
+            config.port = port.parse().map_err(|_| "Invalid BROKER_PORT")?;
+        }
+        
+        if let Ok(max_conn) = std::env::var("BROKER_MAX_CONNECTIONS") {
+            config.max_connections = max_conn.parse().map_err(|_| "Invalid BROKER_MAX_CONNECTIONS")?;
+        }
+        
+        if let Ok(threads) = std::env::var("BROKER_WORKER_THREADS") {
+            config.worker_threads = threads.parse().map_err(|_| "Invalid BROKER_WORKER_THREADS")?;
+        }
+        
+        if let Ok(timeout) = std::env::var("BROKER_CONNECTION_TIMEOUT_MS") {
+            let timeout_ms: u64 = timeout.parse().map_err(|_| "Invalid BROKER_CONNECTION_TIMEOUT_MS")?;
+            config.connection_timeout = Duration::from_millis(timeout_ms);
+        }
+        
+        if let Ok(enable_wal) = std::env::var("BROKER_ENABLE_WAL") {
+            config.enable_wal = enable_wal.parse().unwrap_or(false);
+        }
+        
+        if let Ok(enable_compression) = std::env::var("BROKER_ENABLE_COMPRESSION") {
+            config.enable_compression = enable_compression.parse().unwrap_or(false);
+        }
+        
+        config.validate()?;
+        Ok(config)
+    }
+    
+    /// Validate configuration settings
+    pub fn validate(&self) -> Result<(), String> {
+        if self.port == 0 {
+            return Err("Port cannot be 0".to_string());
+        }
+        
+        if self.max_connections == 0 {
+            return Err("Max connections must be greater than 0".to_string());
+        }
+        
+        if self.worker_threads == 0 {
+            return Err("Worker threads must be greater than 0".to_string());
+        }
+        
+        if self.worker_threads > MAX_WORKER_THREADS {
+            return Err(format!("Worker threads cannot exceed {}", MAX_WORKER_THREADS));
+        }
+        
+        if self.read_buffer_size < 1024 {
+            return Err("Read buffer size must be at least 1024 bytes".to_string());
+        }
+        
+        if self.max_message_size < 1024 {
+            return Err("Max message size must be at least 1024 bytes".to_string());
+        }
+        
+        if self.max_message_size > MAX_MESSAGE_SIZE {
+            return Err(format!("Max message size cannot exceed {} bytes", MAX_MESSAGE_SIZE));
+        }
+        
+        if self.shared_memory_size < 1024 * 1024 { // 1MB minimum
+            return Err("Shared memory size must be at least 1MB".to_string());
+        }
+        
+        Ok(())
     }
 }
 
@@ -382,6 +547,29 @@ impl MessageBrokerHost {
 
     pub fn get_flow_control_stats(&self) -> flow_control::FlowControlStats {
         self.flow_control.get_stats()
+    }
+
+    pub fn get_messages_processed(&self) -> u64 {
+        self.metrics.messages_processed.load(Ordering::Relaxed)
+    }
+
+    pub fn get_metrics(&self) -> BrokerMetrics {
+        let stats = self.get_stats();
+        BrokerMetrics {
+            total_connections: stats.1,
+            active_connections: stats.0 as u64,
+            messages_processed: stats.3,
+            bytes_processed: stats.8,
+            errors: stats.4,
+            rejected_connections: stats.2,
+            avg_latency_ns: stats.5 as f64,
+            min_latency_ns: stats.6,
+            max_latency_ns: stats.7,
+        }
+    }
+
+    pub fn shutdown(&self) {
+        self.stop()
     }
 }
 
