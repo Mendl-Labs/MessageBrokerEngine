@@ -37,7 +37,7 @@ pub enum TopicError {
 
 // Fixed-size topic name for zero-allocation operations
 #[repr(C)]
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FixedTopicName {
     name: [u8; TOPIC_NAME_SIZE],
     len: usize,

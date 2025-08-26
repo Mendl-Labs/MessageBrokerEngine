@@ -242,8 +242,11 @@ impl FlowControlManager {
         let last_refill = self.last_refill.load(Ordering::Relaxed);
         let time_passed = now.saturating_sub(last_refill);
         
-        // Refill tokens based on time passed
-        let tokens_to_add = (time_passed * tokens_per_second) / 1_000_000_000;
+        // Refill tokens based on time passed (using checked arithmetic to prevent overflow)
+        let tokens_to_add = time_passed
+            .checked_mul(tokens_per_second)
+            .and_then(|result| result.checked_div(1_000_000_000))
+            .unwrap_or(bucket_capacity); // If overflow, just fill the bucket
         if tokens_to_add > 0 {
             let current_tokens = self.tokens.load(Ordering::Relaxed);
             let new_tokens = std::cmp::min(current_tokens + tokens_to_add, bucket_capacity);

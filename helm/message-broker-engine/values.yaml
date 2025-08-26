@@ -1,0 +1,227 @@
+# Message Broker Engine Helm Chart Values
+# Production-ready configuration for high-performance message broker
+
+# Image configuration
+image:
+  repository: prodtradingbotregistry.azurecr.io/message-broker-engine
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"
+
+# Image pull secrets for private registry
+imagePullSecrets: []
+
+# Service account configuration
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 10001
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - NET_BIND_SERVICE
+
+# Deployment configuration
+replicaCount: 3
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 1
+
+# Resource limits and requests
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+  metricsPort: 9090
+  annotations: {}
+  labels: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: message-broker.trading.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# ConfigMap configuration
+config:
+  # Message broker settings
+  broker:
+    port: 8080
+    max_connections: 10000
+    buffer_size: 65536
+    timeout_seconds: 30
+    
+  # Performance settings
+  performance:
+    thread_pool_size: 8
+    message_queue_size: 100000
+    cache_size: 1000
+    enable_metrics: true
+    
+  # Logging configuration
+  logging:
+    level: "INFO"
+    format: "json"
+    enable_file_logging: false
+    log_directory: "/var/log/message-broker"
+    
+  # Redis configuration (if enabled)
+  redis:
+    enabled: false
+    host: "redis-service"
+    port: 6379
+    database: 0
+    
+  # Security settings
+  security:
+    enable_tls: false
+    cert_path: "/certs/tls.crt"
+    key_path: "/certs/tls.key"
+
+# Environment variables from ConfigMap
+envFromConfigMap: true
+
+# Secrets configuration
+secrets:
+  # Redis password (if redis enabled)
+  redis_password: ""
+  # TLS certificates (if TLS enabled)
+  tls_cert: ""
+  tls_key: ""
+
+# Persistence configuration
+persistence:
+  enabled: true
+  storageClass: "default"
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  
+  # Logs persistence
+  logs:
+    enabled: true
+    storageClass: "default"
+    size: 5Gi
+
+# Health check configuration
+probes:
+  liveness:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
+    path: /health
+    
+  readiness:
+    enabled: true
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 3
+    path: /ready
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Pod affinity and anti-affinity
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - message-broker-engine
+          topologyKey: kubernetes.io/hostname
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Service Monitor for Prometheus
+serviceMonitor:
+  enabled: false
+  namespace: monitoring
+  interval: 30s
+  scrapeTimeout: 10s
+
+# Network policies
+networkPolicy:
+  enabled: false
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: trading-platform
+      ports:
+        - protocol: TCP
+          port: 8080
+
+# Extra volumes and volume mounts
+extraVolumes: []
+extraVolumeMounts: []
+
+# Priority class
+priorityClassName: ""
+
+# Termination grace period
+terminationGracePeriodSeconds: 30

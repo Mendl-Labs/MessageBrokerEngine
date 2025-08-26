@@ -1,0 +1,45 @@
+# Development environment overrides
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+config:
+  logging:
+    level: "DEBUG"
+    enable_file_logging: false
+    
+  performance:
+    thread_pool_size: 2
+    message_queue_size: 10000
+    cache_size: 100
+
+persistence:
+  enabled: false
+  logs:
+    enabled: false
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+probes:
+  liveness:
+    initialDelaySeconds: 10
+  readiness:
+    initialDelaySeconds: 5
+
+podSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 1000
+
+securityContext:
+  runAsNonRoot: false
+  readOnlyRootFilesystem: false

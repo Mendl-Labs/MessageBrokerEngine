@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "message-broker-engine.fullname" . }}-config
+  labels:
+    {{- include "message-broker-engine.labels" . | nindent 4 }}
+  namespace: {{ .Release.Namespace | quote }}
+data:
+  # Message Broker Configuration
+  BROKER_PORT: "{{ .Values.config.broker.port }}"
+  MAX_CONNECTIONS: "{{ .Values.config.broker.max_connections }}"
+  BUFFER_SIZE: "{{ .Values.config.broker.buffer_size }}"
+  TIMEOUT_SECONDS: "{{ .Values.config.broker.timeout_seconds }}"
+  
+  # Performance Settings
+  THREAD_POOL_SIZE: "{{ .Values.config.performance.thread_pool_size }}"
+  MESSAGE_QUEUE_SIZE: "{{ .Values.config.performance.message_queue_size }}"
+  CACHE_SIZE: "{{ .Values.config.performance.cache_size }}"
+  ENABLE_METRICS: "{{ .Values.config.performance.enable_metrics }}"
+  
+  # Logging Configuration
+  LOG_LEVEL: "{{ .Values.config.logging.level }}"
+  LOG_FORMAT: "{{ .Values.config.logging.format }}"
+  ENABLE_FILE_LOGGING: "{{ .Values.config.logging.enable_file_logging }}"
+  LOG_DIRECTORY: "{{ .Values.config.logging.log_directory }}"
+  
+  # Redis Configuration
+  REDIS_ENABLED: "{{ .Values.config.redis.enabled }}"
+  {{- if .Values.config.redis.enabled }}
+  REDIS_HOST: "{{ .Values.config.redis.host }}"
+  REDIS_PORT: "{{ .Values.config.redis.port }}"
+  REDIS_DATABASE: "{{ .Values.config.redis.database }}"
+  {{- end }}
+  
+  # Security Settings
+  ENABLE_TLS: "{{ .Values.config.security.enable_tls }}"
+  {{- if .Values.config.security.enable_tls }}
+  CERT_PATH: "{{ .Values.config.security.cert_path }}"
+  KEY_PATH: "{{ .Values.config.security.key_path }}"
+  {{- end }}
+  
+  # Runtime Configuration
+  RUST_LOG: "{{ .Values.config.logging.level | lower }}"
+  RUST_BACKTRACE: "{{ if eq .Values.config.logging.level "DEBUG" }}full{{ else }}0{{ end }}"
+  
+  config.yaml: |
+    broker:
+      port: {{ .Values.config.broker.port }}
+      max_connections: {{ .Values.config.broker.max_connections }}
+      buffer_size: {{ .Values.config.broker.buffer_size }}
+      timeout_seconds: {{ .Values.config.broker.timeout_seconds }}
+      
+    performance:
+      thread_pool_size: {{ .Values.config.performance.thread_pool_size }}
+      message_queue_size: {{ .Values.config.performance.message_queue_size }}
+      cache_size: {{ .Values.config.performance.cache_size }}
+      enable_metrics: {{ .Values.config.performance.enable_metrics }}
+      
+    logging:
+      level: {{ .Values.config.logging.level }}
+      format: {{ .Values.config.logging.format }}
+      enable_file_logging: {{ .Values.config.logging.enable_file_logging }}
+      log_directory: {{ .Values.config.logging.log_directory }}
+      
+    {{- if .Values.config.redis.enabled }}
+    redis:
+      enabled: {{ .Values.config.redis.enabled }}
+      host: {{ .Values.config.redis.host }}
+      port: {{ .Values.config.redis.port }}
+      database: {{ .Values.config.redis.database }}
+    {{- end }}
+    
+    {{- if .Values.config.security.enable_tls }}
+    security:
+      enable_tls: {{ .Values.config.security.enable_tls }}
+      cert_path: {{ .Values.config.security.cert_path }}
+      key_path: {{ .Values.config.security.key_path }}
+    {{- end }}

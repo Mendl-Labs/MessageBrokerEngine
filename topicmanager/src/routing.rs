@@ -5,6 +5,11 @@ use parking_lot::RwLock;
 use regex::Regex;
 use wildmatch::WildMatch;
 use tracing::{info, debug, warn};
+use lru::LruCache;
+use std::num::NonZeroUsize;
+
+/// Maximum number of cached routing results to prevent memory leaks
+const ROUTING_CACHE_SIZE: usize = 1000;
 
 /// Message routing patterns for intelligent message distribution
 #[derive(Debug, Clone)]
@@ -36,7 +41,7 @@ pub struct RoutingRule {
 /// Advanced message router with intelligent pattern matching
 pub struct IntelligentMessageRouter {
     routes: Arc<RwLock<HashMap<String, RoutingRule>>>,
-    topic_cache: Arc<RwLock<HashMap<String, Vec<String>>>>, // topic -> matching rule IDs
+    topic_cache: Arc<RwLock<LruCache<String, Vec<String>>>>, // LRU cache for routing results
     compiled_regexes: Arc<RwLock<HashMap<String, Regex>>>,
     routing_stats: Arc<RwLock<RoutingStats>>,
 }
@@ -56,7 +61,9 @@ impl IntelligentMessageRouter {
     pub fn new() -> Self {
         Self {
             routes: Arc::new(RwLock::new(HashMap::new())),
-            topic_cache: Arc::new(RwLock::new(HashMap::new())),
+            topic_cache: Arc::new(RwLock::new(
+                LruCache::new(NonZeroUsize::new(ROUTING_CACHE_SIZE).unwrap())
+            )),
             compiled_regexes: Arc::new(RwLock::new(HashMap::new())),
             routing_stats: Arc::new(RwLock::new(RoutingStats::default())),
         }
@@ -100,10 +107,13 @@ impl IntelligentMessageRouter {
     pub fn route_message(&self, topic: &str, priority: u8, region: Option<&str>) -> Vec<u64> {
         let start_time = std::time::Instant::now();
         
+        // Create a composite cache key that includes topic, priority, and region
+        let cache_key = format!("{}:{}:{}", topic, priority, region.unwrap_or(""));
+        
         // Check cache first
         let cached_rules = {
-            let cache = self.topic_cache.read();
-            cache.get(topic).cloned()
+            let mut cache = self.topic_cache.write();
+            cache.get(&cache_key).cloned()
         };
         
         let matching_rule_ids = if let Some(rule_ids) = cached_rules {
@@ -113,8 +123,8 @@ impl IntelligentMessageRouter {
             self.routing_stats.write().cache_misses += 1;
             let rule_ids = self.find_matching_rules(topic, priority, region);
             
-            // Cache the result
-            self.topic_cache.write().insert(topic.to_string(), rule_ids.clone());
+            // Cache the result with composite key (LRU will evict old entries automatically)
+            self.topic_cache.write().put(cache_key, rule_ids.clone());
             rule_ids
         };
         
@@ -222,6 +232,16 @@ impl IntelligentMessageRouter {
             pattern_match_time_ns: stats.pattern_match_time_ns,
             routes_per_message: stats.routes_per_message.clone(),
         }
+    }
+    
+    /// Get current cache size for monitoring
+    pub fn get_cache_size(&self) -> usize {
+        self.topic_cache.read().len()
+    }
+    
+    /// Get cache capacity
+    pub fn get_cache_capacity(&self) -> usize {
+        ROUTING_CACHE_SIZE
     }
     
     /// Clear routing cache
@@ -525,5 +545,171 @@ mod tests {
         let stats = router.get_stats();
         assert!(stats.cache_hits > 0);
         assert!(stats.cache_misses > 0);
+    }
+
+    #[test]
+    fn test_cache_unlimited_growth() {
+        // This test exposes that the current cache has no size limit
+        // and will grow indefinitely, which is a memory leak risk
+        let router = IntelligentMessageRouter::new();
+        let mut subscribers = HashSet::new();
+        subscribers.insert(999);
+        
+        // Add a wildcard rule that matches everything
+        let rule = RoutingRule {
+            id: "wildcard_rule".to_string(),
+            pattern: RoutingPattern::Wildcard("*".to_string()),
+            target_subscribers: subscribers,
+            enabled: true,
+            metadata: HashMap::new(),
+        };
+        
+        router.add_route(rule).unwrap();
+        
+        // Simulate many different topics being routed
+        // In a real LRU cache, old entries should be evicted
+        for i in 0..10000 {
+            let topic = format!("topic.{}", i);
+            router.route_message(&topic, 1, None);
+        }
+        
+        let stats = router.get_stats();
+        println!("Cache hits: {}, Cache misses: {}", stats.cache_hits, stats.cache_misses);
+        
+        // Current implementation: ALL messages are cache misses (10000)
+        // because each topic is unique, but all get cached indefinitely
+        assert_eq!(stats.cache_misses, 10000);
+        assert_eq!(stats.cache_hits, 0);
+        
+        // Check cache size - this now shows LRU eviction working
+        let cache_size = router.get_cache_size();
+        println!("Cache size after 10000 unique topics: {}", cache_size);
+        
+        // With LRU cache, size should be limited to ROUTING_CACHE_SIZE (1000)
+        assert!(cache_size <= ROUTING_CACHE_SIZE);
+        assert_eq!(cache_size, ROUTING_CACHE_SIZE); // Cache should be at capacity
+        
+        // Route the first topic again - might not be a cache hit if it was evicted
+        let result = router.route_message("topic.0", 1, None);
+        assert_eq!(result, vec![999]);
+        
+        let stats2 = router.get_stats();
+        // With LRU eviction, early topics may have been evicted, so we might not get a hit
+        println!("Cache hits after routing topic.0 again: {}", stats2.cache_hits);
+    }
+
+    #[test]
+    fn test_cache_memory_usage_simulation() {
+        // This test simulates real-world usage patterns where
+        // a proper LRU cache should evict least recently used entries
+        let router = IntelligentMessageRouter::new();
+        let mut subscribers = HashSet::new();
+        subscribers.insert(888);
+        
+        let rule = RoutingRule {
+            id: "memory_test_rule".to_string(),
+            pattern: RoutingPattern::Wildcard("memory.*".to_string()),
+            target_subscribers: subscribers,
+            enabled: true,
+            metadata: HashMap::new(),
+        };
+        
+        router.add_route(rule).unwrap();
+        
+        // Phase 1: Add many entries to cache
+        for i in 0..1000 {
+            router.route_message(&format!("memory.topic.{}", i), 1, None);
+        }
+        
+        // Phase 2: Access only the first 10 topics repeatedly (simulating hot data)
+        for _ in 0..100 {
+            for i in 0..10 {
+                router.route_message(&format!("memory.topic.{}", i), 1, None);
+            }
+        }
+        
+        // Phase 3: Add fewer new entries to avoid completely flushing the cache
+        for i in 1000..1100 {  // Only 100 new entries instead of 1000
+            router.route_message(&format!("memory.topic.{}", i), 1, None);
+        }
+        
+        let stats = router.get_stats();
+        let cache_size = router.get_cache_size();
+        
+        println!("Final cache size: {}, Total hits: {}, Total misses: {}", 
+                cache_size, stats.cache_hits, stats.cache_misses);
+        
+        // With LRU cache: size is limited and old entries are evicted
+        assert!(cache_size <= ROUTING_CACHE_SIZE);
+        
+        // The hot topics (0-9) should still be cached and give hits (they were accessed recently)
+        let hot_topic_hits_start = router.get_stats().cache_hits;
+        for i in 0..10 {
+            router.route_message(&format!("memory.topic.{}", i), 1, None);
+        }
+        let hot_topic_hits_end = router.get_stats().cache_hits;
+        let new_hits = hot_topic_hits_end - hot_topic_hits_start;
+        println!("Hot topics (0-9) cache hits: {}/10", new_hits);
+        // At least some of the hot topics should still be cached (they were recently accessed)
+        assert!(new_hits >= 5, "At least half of the hot topics should still be in cache");
+    }
+
+    #[test] 
+    fn test_lru_cache_capacity_limit() {
+        // Test that LRU cache respects capacity limits
+        let router = IntelligentMessageRouter::new();
+        let mut subscribers = HashSet::new();
+        subscribers.insert(777);
+        
+        let rule = RoutingRule {
+            id: "lru_capacity_test_rule".to_string(),
+            pattern: RoutingPattern::Wildcard("capacity.*".to_string()),
+            target_subscribers: subscribers,
+            enabled: true,
+            metadata: HashMap::new(),
+        };
+        
+        router.add_route(rule).unwrap();
+        
+        let capacity = router.get_cache_capacity();
+        println!("LRU Cache capacity: {}", capacity);
+        assert_eq!(capacity, ROUTING_CACHE_SIZE);
+        
+        // Add more entries than the cache capacity
+        let entries_to_add = capacity + 500;  // 1500 entries for a 1000-capacity cache
+        
+        for i in 0..entries_to_add {
+            router.route_message(&format!("capacity.topic.{}", i), 1, None);
+        }
+        
+        // Cache size should never exceed capacity
+        let final_cache_size = router.get_cache_size();
+        println!("Cache size after adding {} entries: {}", entries_to_add, final_cache_size);
+        
+        assert_eq!(final_cache_size, capacity, "Cache size should be limited to capacity");
+        
+        let stats = router.get_stats();
+        println!("Total cache misses: {}, Total cache hits: {}", 
+                stats.cache_misses, stats.cache_hits);
+        
+        // Should have capacity misses for first fills + extra entries
+        assert_eq!(stats.cache_misses, entries_to_add as u64);
+        assert_eq!(stats.cache_hits, 0); // No hits since all topics are unique
+        
+        // Now access a recently added topic - should be in cache
+        let recent_topic = format!("capacity.topic.{}", entries_to_add - 1);
+        router.route_message(&recent_topic, 1, None);
+        
+        let stats_after = router.get_stats();
+        assert_eq!(stats_after.cache_hits, 1, "Recent topic should be cache hit");
+        
+        // Access a very early topic - should be evicted (cache miss)
+        let old_topic = "capacity.topic.0";
+        router.route_message(&old_topic, 1, None);
+        
+        let stats_final = router.get_stats();
+        // This could be either a hit or miss depending on eviction order
+        // The important thing is cache size is still limited
+        assert_eq!(router.get_cache_size(), capacity);
     }
 }

@@ -1,0 +1,90 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "message-broker-engine.fullname" . }}
+  labels:
+    {{- include "message-broker-engine.labels" . | nindent 4 }}
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "message-broker-engine.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    {{- if .Values.networkPolicy.ingress.enabled }}
+    - Ingress
+    {{- end }}
+    {{- if .Values.networkPolicy.egress.enabled }}
+    - Egress
+    {{- end }}
+  {{- if .Values.networkPolicy.ingress.enabled }}
+  ingress:
+    {{- range .Values.networkPolicy.ingress.rules }}
+    - {{- if .ports }}
+      ports:
+        {{- range .ports }}
+        - protocol: {{ .protocol | default "TCP" }}
+          port: {{ .port }}
+        {{- end }}
+      {{- end }}
+      {{- if .from }}
+      from:
+        {{- range .from }}
+        {{- if .podSelector }}
+        - podSelector:
+            matchLabels:
+              {{- toYaml .podSelector.matchLabels | nindent 14 }}
+        {{- end }}
+        {{- if .namespaceSelector }}
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .namespaceSelector.matchLabels | nindent 14 }}
+        {{- end }}
+        {{- if .ipBlock }}
+        - ipBlock:
+            cidr: {{ .ipBlock.cidr }}
+            {{- if .ipBlock.except }}
+            except:
+              {{- toYaml .ipBlock.except | nindent 14 }}
+            {{- end }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.networkPolicy.egress.enabled }}
+  egress:
+    {{- range .Values.networkPolicy.egress.rules }}
+    - {{- if .ports }}
+      ports:
+        {{- range .ports }}
+        - protocol: {{ .protocol | default "TCP" }}
+          port: {{ .port }}
+        {{- end }}
+      {{- end }}
+      {{- if .to }}
+      to:
+        {{- range .to }}
+        {{- if .podSelector }}
+        - podSelector:
+            matchLabels:
+              {{- toYaml .podSelector.matchLabels | nindent 14 }}
+        {{- end }}
+        {{- if .namespaceSelector }}
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .namespaceSelector.matchLabels | nindent 14 }}
+        {{- end }}
+        {{- if .ipBlock }}
+        - ipBlock:
+            cidr: {{ .ipBlock.cidr }}
+            {{- if .ipBlock.except }}
+            except:
+              {{- toYaml .ipBlock.except | nindent 14 }}
+            {{- end }}
+        {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}

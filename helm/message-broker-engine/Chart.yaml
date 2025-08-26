@@ -1,0 +1,22 @@
+apiVersion: v2
+name: message-broker-engine
+description: Ultra-High Performance Message Broker Engine for Trading Platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: https://github.com/Nwagbara-Group-LLC/MessageBrokerEngine
+sources:
+  - https://github.com/Nwagbara-Group-LLC/MessageBrokerEngine
+maintainers:
+  - name: Nwagbara Group LLC
+    email: engineering@nwagbara-group.com
+keywords:
+  - trading
+  - message-broker
+  - high-performance
+  - rust
+  - microservices
+  - real-time
+annotations:
+  category: Trading Infrastructure
+dependencies: []
