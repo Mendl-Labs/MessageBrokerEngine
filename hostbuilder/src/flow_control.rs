@@ -3,10 +3,9 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
-use tokio::sync::{Semaphore, mpsc};
+use std::time::Duration;
+use tokio::sync::Semaphore;
 use tokio::time::sleep;
-use tracing::{info, warn, error};
 
 /// Flow control strategy types
 #[derive(Debug, Clone, PartialEq)]

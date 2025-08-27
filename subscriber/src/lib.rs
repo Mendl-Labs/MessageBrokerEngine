@@ -1,7 +1,7 @@
 // Ultra-high performance subscriber for sub-microsecond latency
-use std::sync::atomic::{AtomicU64, AtomicUsize, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::collections::HashMap;
 
 use crossbeam::queue::SegQueue;

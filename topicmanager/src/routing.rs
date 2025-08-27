@@ -4,7 +4,7 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use regex::Regex;
 use wildmatch::WildMatch;
-use tracing::{info, debug, warn};
+use tracing::{info, debug};
 use lru::LruCache;
 use std::num::NonZeroUsize;
 

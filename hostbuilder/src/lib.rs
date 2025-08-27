@@ -3,10 +3,10 @@
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicBool, AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use tokio::net::{TcpListener, TcpStream};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tracing::{info, error, warn, debug};
 
 pub mod wal;

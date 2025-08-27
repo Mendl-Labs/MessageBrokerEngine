@@ -1,9 +1,8 @@
 // Write-Ahead Log (WAL) implementation for message durability
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Write, BufRead, BufReader, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::io::{BufWriter, Write, BufRead, BufReader};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::collections::VecDeque;
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize, Deserialize};
 use tokio::sync::mpsc;
