@@ -1,0 +1,141 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "message-broker-engine.fullname" . }}
+  labels:
+    {{- include "message-broker-engine.labels" . | nindent 4 }}
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "message-broker-engine.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "message-broker-engine.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.performance.cpuAffinity }}
+        scheduler.alpha.kubernetes.io/critical-pod: ""
+        scheduler.alpha.kubernetes.io/preferred-max-skew: "1"
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "message-broker-engine.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort | default 3000 }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.service.metricsPort | default 9090 }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.service.targetPort | default 3000 | quote }}
+            - name: METRICS_PORT
+              value: {{ .Values.service.metricsPort | default 9090 | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | default "info" | quote }}
+            {{- if .Values.extraEnvVars }}
+            {{- range .Values.extraEnvVars }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+            {{- end }}
+          {{- if .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          {{- else }}
+          livenessProbe:
+            exec:
+              command:
+                - "/usr/local/bin/liveness_check.sh"
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            failureThreshold: 3
+          {{- end }}
+          {{- if .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          {{- else }}
+          readinessProbe:
+            exec:
+              command:
+                - "/usr/local/bin/health_check.sh"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          {{- end }}
+          {{- if .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            {{- if .Values.performance.hugePagesEnabled }}
+            - name: hugepages
+              mountPath: /dev/hugepages
+            {{- end }}
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
+            {{- if .Values.configMap.create }}
+            - name: config
+              mountPath: /etc/config
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        {{- if .Values.performance.hugePagesEnabled }}
+        - name: hugepages
+          emptyDir:
+            medium: HugePages
+        {{- end }}
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "message-broker-engine.fullname" . }}-data
+        {{- else }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.configMap.create }}
+        - name: config
+          configMap:
+            name: {{ include "message-broker-engine.fullname" . }}-config
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

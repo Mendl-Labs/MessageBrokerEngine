@@ -97,3 +97,30 @@ scheduler.alpha.kubernetes.io/preferred-max-skew: "1"
 numa.kubernetes.io/topology-policy: "single-numa-node"
 {{- end }}
 {{- end }}
+
+{{/*
+Aliases for message-broker-engine templates
+*/}}
+{{- define "message-broker-engine.name" -}}
+{{- include "ultra-message-broker.name" . }}
+{{- end }}
+
+{{- define "message-broker-engine.fullname" -}}
+{{- include "ultra-message-broker.fullname" . }}
+{{- end }}
+
+{{- define "message-broker-engine.chart" -}}
+{{- include "ultra-message-broker.chart" . }}
+{{- end }}
+
+{{- define "message-broker-engine.labels" -}}
+{{- include "ultra-message-broker.labels" . }}
+{{- end }}
+
+{{- define "message-broker-engine.selectorLabels" -}}
+{{- include "ultra-message-broker.selectorLabels" . }}
+{{- end }}
+
+{{- define "message-broker-engine.serviceAccountName" -}}
+{{- include "ultra-message-broker.serviceAccountName" . }}
+{{- end }}

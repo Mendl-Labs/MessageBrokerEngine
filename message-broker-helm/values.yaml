@@ -80,6 +80,14 @@ broker:
   metricsPort: 9090
   healthcheckPort: 8081
 
+# Application configuration
+config:
+  logLevel: "info"
+  messageQueueSize: 10000
+  workerThreads: 4
+  maxConnections: 1000
+  enableMetrics: true
+
 # Auto-scaling configuration
 autoscaling:
   enabled: true
