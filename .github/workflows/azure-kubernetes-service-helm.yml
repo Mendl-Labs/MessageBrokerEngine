@@ -44,9 +44,9 @@ env:
   CONTAINER_NAME: "message-broker-engine"
   RESOURCE_GROUP: "prod-aks-trading-bot-rg"
   CLUSTER_NAME: "prod-trading-bot-cluster"
-  CHART_PATH: "./message-broker-engine-helm"
-  BASE_CHART_OVERRIDE_PATH: "./message-broker-engine-helm/values.yaml"
-  ENV_CHART_OVERRIDE_PATH: "./message-broker-engine-helm/values-prod.yaml"
+  CHART_PATH: "./message-broker-helm"
+  BASE_CHART_OVERRIDE_PATH: "./message-broker-helm/values.yaml"
+  ENV_CHART_OVERRIDE_PATH: "./message-broker-helm/values-prod.yaml"
 
 jobs:
   buildImage:
