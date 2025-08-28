@@ -8,9 +8,21 @@ use tokio::io::AsyncWriteExt;
 use tracing::{info, warn, debug};
 use crossbeam::queue::SegQueue;
 
-// Import protocol messages for DataEngine compatibility
-use protocol::broker::messages::PublishRequest;
+// Import protocol types for DataEngine compatibility
+use protocol::generated::{PublishRequest, publish_request};
 use prost::Message;
+
+// Re-export optimized publisher
+pub mod optimized_publisher;
+pub use optimized_publisher::{OptimizedPublisher, BatchingConfig, BatchProcessor};
+
+// Re-export CPU optimization utilities
+pub mod cpu_optimization;
+
+// Re-export memory optimization utilities  
+pub mod memory_optimization;
+pub use memory_optimization::{MessageBufferPool, PoolConfig, ZeroCopyMessageBuilder};
+pub use cpu_optimization::{CpuOptimizer, CpuAffinityConfig, CpuAffinityError};
 
 /// Cross-platform timestamp function optimized for ultra-low latency
 #[cfg(target_arch = "x86_64")]
@@ -480,9 +492,9 @@ impl Publisher {
     pub fn publish(&mut self, request: PublishRequest, topic: &str) -> Result<(), UltraFastError> {
         if let Some(ref rt) = self.rt {
             rt.block_on(async {
-                if let Some(payload) = request.payload {
+                if let Some(ref payload) = request.payload {
                     match payload {
-                        protocol::broker::messages::publish_request::Payload::MarketPayload(market_msg) => {
+                        protocol::generated::publish_request::Payload::MarketPayload(market_msg) => {
                             debug!("Publishing market message to topic: {}", topic);
                             // Serialize the protobuf message
                             let mut buf = Vec::new();
@@ -495,7 +507,7 @@ impl Publisher {
                             
                             self.inner.publish_raw(full_message, topic).await
                         },
-                        protocol::broker::messages::publish_request::Payload::PortfolioPayload(portfolio_msg) => {
+                        protocol::generated::publish_request::Payload::PortfolioPayload(portfolio_msg) => {
                             debug!("Publishing portfolio message to topic: {}", topic);
                             // Serialize the protobuf message
                             let mut buf = Vec::new();
@@ -508,6 +520,12 @@ impl Publisher {
                             
                             self.inner.publish_raw(full_message, topic).await
                         },
+                        _ => {
+                            debug!("Publishing generic message to topic: {}", topic);
+                            // For other message types, serialize as JSON
+                            let json_data = serde_json::to_vec(&request).map_err(|_| UltraFastError::SerializationFailed)?;
+                            self.inner.publish_raw(json_data, topic).await
+                        }
                     }
                 } else {
                     Err(UltraFastError::SerializationFailed)
