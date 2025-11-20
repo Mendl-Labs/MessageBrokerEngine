@@ -9,7 +9,7 @@ use tracing::{info, warn, debug};
 use crossbeam::queue::SegQueue;
 
 // Import protocol types for DataEngine compatibility
-use protocol::generated::{PublishRequest, publish_request};
+use protocol::generated::PublishRequest;
 use prost::Message;
 
 // Re-export optimized publisher

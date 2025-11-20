@@ -290,7 +290,7 @@ async fn test_performance_under_load() {
     }
     
     let duration = start.elapsed();
-    let (connections, messages, bytes, errors, _, avg_time, _, _, _) = metrics.get_stats();
+    let (connections, messages, _bytes, errors, _, avg_time, _, _, _) = metrics.get_stats();
     
     assert_eq!(connections, num_operations as u64);
     assert_eq!(messages, num_operations as u64);

@@ -269,11 +269,12 @@ impl OptimizedPublisher {
         }
         
         let batch_start = get_rdtsc();
-        let mut total_bytes = 0u64;
         
         // Sort by priority for optimal processing order
         let mut sorted_messages = messages_to_send;
         sorted_messages.sort_by(|a, b| b.priority.cmp(&a.priority));
+        
+        let total_bytes;
         
         let mut connection = inner.connection.write().await;
         if let Some(ref mut stream) = *connection {

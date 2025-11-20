@@ -11,9 +11,15 @@ use tracing::{info, error, warn, debug};
 
 pub mod wal;
 pub mod flow_control;
+pub mod tcp_optimization;
+pub mod simd_acceleration;
+pub mod huge_pages;
 
 pub use wal::{WriteAheadLog, WALConfig, WALEntry};
 pub use flow_control::{FlowControlManager, BackpressureConfig, FlowControlStrategy};
+pub use tcp_optimization::{TcpOptimizationConfig, create_optimized_socket, optimize_tcp_stream};
+pub use simd_acceleration::{copy_batch_simd, checksum_simd, zero_memory_simd, compare_simd};
+pub use huge_pages::{HugePageConfig, HugePageAllocator, allocate_huge_page_buffer, huge_pages_available};
 
 // Cross-platform ultra-fast timestamp function
 #[cfg(target_arch = "x86_64")]
@@ -131,22 +137,87 @@ impl Clone for BrokerConfig {
 }
 
 // Lock-free metrics for ultra-fast performance tracking
-#[derive(Debug, Default)]
+// Cache-line aligned to prevent false sharing (64-byte cache lines on x86_64)
+#[repr(align(64))]
+#[derive(Debug)]
 pub struct UltraFastMetrics {
+    // Each atomic on its own cache line to prevent false sharing
     active_connections: AtomicUsize,
+    _pad1: [u8; 64 - std::mem::size_of::<AtomicUsize>()],
+    
     total_connections: AtomicU64,
+    _pad2: [u8; 56],
+    
     rejected_connections: AtomicU64,
+    _pad3: [u8; 56],
+    
     messages_processed: AtomicU64,
+    _pad4: [u8; 56],
+    
     errors: AtomicU64,
+    _pad5: [u8; 56],
+    
     avg_processing_time_ns: AtomicU64,
+    _pad6: [u8; 56],
+    
     max_processing_time_ns: AtomicU64,
+    _pad7: [u8; 56],
+    
     min_processing_time_ns: AtomicU64,
+    _pad8: [u8; 56],
+    
     bytes_processed: AtomicU64,
+    _pad9: [u8; 56],
+    
     total_latency_ns: AtomicU64,
+    _pad10: [u8; 56],
+    
     min_latency_ns: AtomicU64,
+    _pad11: [u8; 56],
+    
     max_latency_ns: AtomicU64,
+    _pad12: [u8; 56],
+    
     cache_hits: AtomicU64,
+    _pad13: [u8; 56],
+    
     cache_misses: AtomicU64,
+    _pad14: [u8; 56],
+}
+
+impl Default for UltraFastMetrics {
+    fn default() -> Self {
+        Self {
+            active_connections: AtomicUsize::new(0),
+            _pad1: [0; 64 - std::mem::size_of::<AtomicUsize>()],
+            total_connections: AtomicU64::new(0),
+            _pad2: [0; 56],
+            rejected_connections: AtomicU64::new(0),
+            _pad3: [0; 56],
+            messages_processed: AtomicU64::new(0),
+            _pad4: [0; 56],
+            errors: AtomicU64::new(0),
+            _pad5: [0; 56],
+            avg_processing_time_ns: AtomicU64::new(0),
+            _pad6: [0; 56],
+            max_processing_time_ns: AtomicU64::new(0),
+            _pad7: [0; 56],
+            min_processing_time_ns: AtomicU64::new(0),
+            _pad8: [0; 56],
+            bytes_processed: AtomicU64::new(0),
+            _pad9: [0; 56],
+            total_latency_ns: AtomicU64::new(0),
+            _pad10: [0; 56],
+            min_latency_ns: AtomicU64::new(0),
+            _pad11: [0; 56],
+            max_latency_ns: AtomicU64::new(0),
+            _pad12: [0; 56],
+            cache_hits: AtomicU64::new(0),
+            _pad13: [0; 56],
+            cache_misses: AtomicU64::new(0),
+            _pad14: [0; 56],
+        }
+    }
 }
 
 impl UltraFastMetrics {

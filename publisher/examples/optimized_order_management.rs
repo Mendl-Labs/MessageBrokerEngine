@@ -59,8 +59,10 @@ pub struct OptimizedOrderManager {
 pub struct OrderPool {
     // Pre-allocated orders to avoid heap allocation during trading
     available_orders: Mutex<Vec<Order>>,
+    #[allow(dead_code)]
     pool_size: usize,
     orders_allocated: AtomicU64,
+    #[allow(dead_code)]
     orders_returned: AtomicU64,
 }
 
@@ -252,7 +254,7 @@ impl OptimizedOrderManager {
 
     fn populate_order_optimized(&self, order: &mut Order, signal: &TradingSignal, risk_result: &RiskCheckResult) -> Result<(), Box<dyn std::error::Error>> {
         // Use pre-computed order template for maximum speed
-        let template = self.validation_cache.order_templates.get(&signal.symbol)
+        let _template = self.validation_cache.order_templates.get(&signal.symbol)
             .ok_or("No order template")?;
 
         // Ultra-fast string operations - avoid allocations where possible
@@ -393,6 +395,7 @@ impl OrderPool {
 #[derive(Debug)]
 struct RiskCheckResult {
     order_sequence: u64,
+    #[allow(dead_code)]
     max_allowed_size: f64,
 }
 

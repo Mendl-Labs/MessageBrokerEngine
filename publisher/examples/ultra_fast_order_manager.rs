@@ -1,7 +1,6 @@
 // ULTRA-FAST Order Management System - Fixed Implementation
 // Target: <100μs (vs 544μs baseline = 80%+ improvement)
 
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
@@ -36,6 +35,7 @@ pub struct UltraFastOrder {
 pub struct UltraFastOrderManager {
     // Pre-computed symbol mappings for instant lookup
     symbol_to_id: HashMap<String, u8>,
+    #[allow(dead_code)]
     id_to_symbol: Vec<&'static str>,
     
     // Pre-allocated order sequence

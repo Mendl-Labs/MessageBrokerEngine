@@ -299,6 +299,7 @@ impl IntelligentMessageRouter {
 pub struct TopicSubscriptionManager {
     subscriptions: Arc<RwLock<HashMap<u64, Vec<TopicSubscription>>>>, // subscriber_id -> subscriptions
     topic_to_subscribers: Arc<RwLock<HashMap<String, HashSet<u64>>>>, // topic -> subscriber_ids
+    #[allow(dead_code)]
     pattern_subscriptions: Arc<RwLock<Vec<PatternSubscription>>>,
 }
 
@@ -542,9 +543,9 @@ mod tests {
         let result2 = router.route_message("cached.topic", 1, None);
         assert_eq!(result2, vec![999]);
         
-        let stats = router.get_stats();
-        assert!(stats.cache_hits > 0);
-        assert!(stats.cache_misses > 0);
+        let _stats = router.get_stats();
+        assert!(_stats.cache_hits > 0);
+        assert!(_stats.cache_misses > 0);
     }
 
     #[test]
@@ -707,7 +708,7 @@ mod tests {
         let old_topic = "capacity.topic.0";
         router.route_message(&old_topic, 1, None);
         
-        let stats_final = router.get_stats();
+        let _stats_final = router.get_stats();
         // This could be either a hit or miss depending on eviction order
         // The important thing is cache size is still limited
         assert_eq!(router.get_cache_size(), capacity);

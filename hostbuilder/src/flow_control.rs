@@ -108,6 +108,7 @@ pub struct FlowControlManager {
     // Circuit breaker state
     circuit_breaker_open: Arc<AtomicU64>, // timestamp when opened, 0 if closed
     
+    #[allow(dead_code)]
     is_running: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -146,7 +147,7 @@ impl FlowControlManager {
     }
 
     /// Determine if a message should be processed
-    pub async fn should_process_message(&self, message_size: usize) -> FlowControlDecision {
+    pub async fn should_process_message(&self, _message_size: usize) -> FlowControlDecision {
         self.stats.total_requests.fetch_add(1, Ordering::Relaxed);
         
         // Check circuit breaker first
@@ -169,7 +170,7 @@ impl FlowControlManager {
             FlowControlStrategy::Backpressure { max_buffer_size, low_watermark, high_watermark } => {
                 self.backpressure_decision(*max_buffer_size, *low_watermark, *high_watermark)
             }
-            FlowControlStrategy::Hybrid { primary, fallback, switch_threshold } => {
+            FlowControlStrategy::Hybrid { primary: _, fallback: _, switch_threshold } => {
                 // Simplified hybrid logic - use primary if load is below threshold
                 let current_load = self.calculate_current_load();
                 if current_load < *switch_threshold {
@@ -431,7 +432,6 @@ impl std::error::Error for FlowControlError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{sleep, Duration};
 
     #[tokio::test]
     async fn test_flow_control_manager_creation() {

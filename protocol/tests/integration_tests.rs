@@ -1,5 +1,3 @@
-use protocol::broker::messages::*;
-
 #[tokio::test]
 async fn test_protocol_module_exists() {
     // Basic test to ensure the protocol module compiles and is accessible

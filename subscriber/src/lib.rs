@@ -364,6 +364,7 @@ impl ConnectionConfig {
 #[derive(Clone)]
 pub struct Subscriber {
     inner: UltraFastSubscriber,
+    #[allow(dead_code)]
     config: ConnectionConfig,
     topics: Vec<String>,
 }

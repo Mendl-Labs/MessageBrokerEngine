@@ -82,7 +82,7 @@ async fn test_ultra_fast_message_data_integrity() {
 #[tokio::test]
 #[serial]
 async fn test_ultra_fast_subscriber_creation() {
-    let subscriber = UltraFastSubscriber::new(42);
+    let _subscriber = UltraFastSubscriber::new(42);
     
     // Test subscriber creation doesn't panic
     assert!(true); // Placeholder - subscriber created successfully

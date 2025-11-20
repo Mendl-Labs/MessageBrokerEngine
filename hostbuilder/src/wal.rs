@@ -46,8 +46,11 @@ impl Default for WALConfig {
 /// High-performance Write-Ahead Log for message durability
 pub struct WriteAheadLog {
     config: WALConfig,
+    #[allow(dead_code)]
     current_file: Option<BufWriter<File>>,
+    #[allow(dead_code)]
     current_file_path: Option<PathBuf>,
+    #[allow(dead_code)]
     current_file_size: usize,
     sequence_number: Arc<Mutex<u64>>,
     write_channel: mpsc::UnboundedSender<WALEntry>,
@@ -62,7 +65,6 @@ impl WriteAheadLog {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let config_clone = config.clone();
         let sequence_number = Arc::new(Mutex::new(0));
-        let seq_clone = Arc::clone(&sequence_number);
         
         // Background task for async WAL writes
         let write_task = tokio::spawn(async move {

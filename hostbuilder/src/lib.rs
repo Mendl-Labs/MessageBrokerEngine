@@ -6,7 +6,6 @@ use std::sync::atomic::{AtomicU64, AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use tokio::net::{TcpListener, TcpStream};
-use tokio::io::AsyncWriteExt;
 use tracing::{info, error, warn, debug};
 
 pub mod wal;
@@ -43,12 +42,10 @@ fn get_rdtsc() -> u64 {
 }
 
 // Ultra-performance constants
-const MAX_CONNECTIONS: usize = 50000;
 const MAX_WORKER_THREADS: usize = 64;
 const CONNECTION_TIMEOUT_MS: u64 = 100;
 const READ_BUFFER_SIZE: usize = 1048576;      // 1MB
 const MAX_MESSAGE_SIZE: usize = 16777216;     // 16MB
-const RING_BUFFER_CAPACITY: usize = 65536;    // Must be power of 2
 
 // Ultra-fast error types
 #[derive(Debug, Clone)]
@@ -138,12 +135,16 @@ pub struct UltraFastMetrics {
     rejected_connections: AtomicU64,
     messages_processed: AtomicU64,
     errors: AtomicU64,
+    #[allow(dead_code)]
     avg_processing_time_ns: AtomicU64,
     max_processing_time_ns: AtomicU64,
+    #[allow(dead_code)]
     min_processing_time_ns: AtomicU64,
     bytes_processed: AtomicU64,
     total_latency_ns: AtomicU64,
+    #[allow(dead_code)]
     min_latency_ns: AtomicU64,
+    #[allow(dead_code)]
     max_latency_ns: AtomicU64,
     cache_hits: AtomicU64,
     cache_misses: AtomicU64,
@@ -426,8 +427,10 @@ impl BrokerConfig {
 #[derive(Debug)]
 pub struct Connection {
     id: u64,
+    #[allow(dead_code)]
     stream: Arc<tokio::sync::Mutex<TcpStream>>,
     is_active: Arc<AtomicBool>,
+    #[allow(dead_code)]
     last_activity: u64,
 }
 
@@ -463,6 +466,7 @@ pub struct MessageBrokerHost {
     connection_counter: Arc<AtomicU64>,
     
     // Enhanced features
+    #[allow(dead_code)]
     wal: Option<Arc<WriteAheadLog>>,
     flow_control: Arc<FlowControlManager>,
 }

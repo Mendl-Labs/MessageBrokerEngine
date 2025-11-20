@@ -20,7 +20,6 @@ pub use routing::{IntelligentMessageRouter, TopicSubscriptionManager, RoutingRul
 const MAX_TOPICS: usize = 10000;
 const MAX_SUBSCRIBERS_PER_TOPIC: usize = 1000;
 const BATCH_SIZE: usize = 128;
-const MESSAGE_BUFFER_SIZE: usize = 64 * 1024; // 64KB per message buffer
 
 /// Cross-platform timestamp function
 #[cfg(target_arch = "x86_64")]
@@ -443,7 +442,6 @@ pub struct TopicManagerMetrics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::net::{TcpListener, TcpStream};
 
     #[test]
     fn test_fixed_topic_name() {

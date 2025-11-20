@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let buffer_pool = Arc::new(MessageBufferPool::new(pool_config));
     
-    let batching_config = BatchingConfig {
+    let _batching_config = BatchingConfig {
         max_batch_size: 100,
         max_flush_delay_us: 50,       // 50μs max delay
         adaptive_batching: true,
@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let test_start = Instant::now();
     while test_start.elapsed() < test_duration && messages_processed < total_messages {
         // Process batch of messages
-        for i in 0..50 {
+        for _ in 0..50 {
             if messages_processed >= total_messages {
                 break;
             }
@@ -174,8 +174,8 @@ fn generate_test_message(sequence: usize) -> Vec<u8> {
 }
 
 fn analyze_optimization_results(
-    messages_processed: usize,
-    total_duration: Duration,
+    _messages_processed: usize,
+    _total_duration: Duration,
     processing_latencies: &[Duration],
     baseline_latency_ms: f64,
     target_latency_ms: f64,

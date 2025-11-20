@@ -105,13 +105,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("\n🚀 Initializing Ultra-Fast Production Broker (Phase 1)...");
     let start_time = Instant::now();
     
-    let mut ultra_broker = UltraProductionBroker::new("0.0.0.0:8080").await?;
+    let ultra_broker = UltraProductionBroker::new("0.0.0.0:8080").await?;
     
     let init_time = start_time.elapsed();
     println!("✅ Ultra-Fast Broker initialized in {:.2}ms", init_time.as_secs_f64() * 1000.0);
     
     // Create test subscriber for demonstration
-    let (test_tx, mut test_rx) = channel::bounded::<UltraMessage>(10000);
+    let (test_tx, test_rx) = channel::bounded::<UltraMessage>(10000);
     ultra_broker.subscribe("market_data".to_string(), test_tx).await?;
     
     // Start broker
