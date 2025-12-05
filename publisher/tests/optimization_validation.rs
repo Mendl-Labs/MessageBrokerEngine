@@ -50,8 +50,8 @@ fn test_cpu_optimization_creation() {
     println!("✅ CPU optimizer creation test passed");
 }
 
-#[test]
-fn test_zero_copy_message_builder() {
+#[tokio::test]
+async fn test_zero_copy_message_builder() {
     let config = PoolConfig::default();
     let pool = Arc::new(MessageBufferPool::new(config));
     
@@ -91,8 +91,8 @@ async fn test_batching_config_validation() {
     println!("✅ Batching config validation test passed");
 }
 
-#[test]
-fn test_pool_statistics() {
+#[tokio::test]
+async fn test_pool_statistics() {
     let config = PoolConfig::default();
     let pool = MessageBufferPool::new(config);
     
@@ -121,8 +121,8 @@ fn test_pool_statistics() {
     println!("   Memory efficiency: {:.2}%", memory_efficiency * 100.0);
 }
 
-#[test]
-fn test_pool_health_monitoring() {
+#[tokio::test]
+async fn test_pool_health_monitoring() {
     let config = PoolConfig {
         small_pool_size: 100,
         medium_pool_size: 50,
@@ -161,8 +161,8 @@ fn test_pool_health_monitoring() {
     }
 }
 
-#[test]
-fn test_comprehensive_optimization_integration() {
+#[tokio::test]
+async fn test_comprehensive_optimization_integration() {
     // Test that all optimization components can be created together
     let config = CpuAffinityConfig::default();
     let _cpu_optimizer = CpuOptimizer::new(config);
