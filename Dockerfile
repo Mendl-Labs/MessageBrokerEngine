@@ -1,12 +1,21 @@
 # syntax=docker/dockerfile:1
+# MessageBrokerEngine Dockerfile
+# Build context MUST be parent directory containing: MessageBrokerEngine/, LoggingEngine/
+# Build: docker build -f MessageBrokerEngine/Dockerfile -t messagebroker-engine:latest .
 
 ARG RUST_VERSION=1.82.0
 ARG APP_NAME=program
 
+# Cache-busting args: when these change, Docker invalidates the cache for subsequent layers
+ARG LOGGING_ENGINE_SHA=latest
+
 ################################################################################
 # Stage 1: Build the application
-FROM rust:${RUST_VERSION}-slim-bullseye AS build
+FROM rust:${RUST_VERSION}-slim-bookworm AS build
 ARG APP_NAME
+
+# Re-declare cache-busting args in this stage
+ARG LOGGING_ENGINE_SHA
 
 # Install necessary build dependencies
 RUN apt-get update && apt-get install -y \
@@ -18,20 +27,24 @@ RUN apt-get update && apt-get install -y \
 # Set the working directory inside the container
 WORKDIR /app
 
-# Copy the source code into the container
-COPY . /app/MessageBroker
+# Cache bust: this label changes when dependency SHA changes
+LABEL logging_engine_sha="${LOGGING_ENGINE_SHA}"
 
+# Copy dependencies first (for better caching)
+COPY LoggingEngine/ ./LoggingEngine/
 
-# Ensure the program builds correctly from the workspace
-WORKDIR /app/MessageBroker
+# Copy MessageBrokerEngine
+COPY MessageBrokerEngine/ ./MessageBrokerEngine/
 
-RUN cargo test --locked --release && \
-    cargo build --locked --release && \
+# Build from MessageBrokerEngine directory
+WORKDIR /app/MessageBrokerEngine
+
+RUN cargo build --locked --release && \
     cp target/release/$APP_NAME /bin/server
 
 ################################################################################
 # Stage 2: Create a smaller runtime image
-FROM debian:bullseye-slim AS runtime
+FROM debian:bookworm-slim AS runtime
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
