@@ -134,14 +134,14 @@ secrets:
 # Persistence configuration
 persistence:
   enabled: true
-  storageClass: "default"
+  storageClass: "hostpath"
   accessMode: ReadWriteOnce
   size: 10Gi
   
   # Logs persistence
   logs:
     enabled: true
-    storageClass: "default"
+    storageClass: "hostpath"
     size: 5Gi
 
 # Health check configuration (exec probes - no HTTP UI)
