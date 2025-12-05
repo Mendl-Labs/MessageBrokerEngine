@@ -3,7 +3,7 @@
 # Build context MUST be parent directory containing: MessageBrokerEngine/, LoggingEngine/
 # Build: docker build -f MessageBrokerEngine/Dockerfile -t messagebroker-engine:latest .
 
-ARG RUST_VERSION=1.82.0
+ARG RUST_VERSION=1.83.0
 ARG APP_NAME=program
 
 # Cache-busting args: when these change, Docker invalidates the cache for subsequent layers
