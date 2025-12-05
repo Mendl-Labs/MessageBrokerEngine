@@ -83,9 +83,9 @@ spec:
             {{- end }}
           {{- if .Values.probes.liveness.enabled }}
           livenessProbe:
-            httpGet:
-              path: {{ .Values.probes.liveness.path }}
-              port: http
+            exec:
+              command:
+                {{- toYaml .Values.probes.liveness.command | nindent 16 }}
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
@@ -94,9 +94,9 @@ spec:
           {{- end }}
           {{- if .Values.probes.readiness.enabled }}
           readinessProbe:
-            httpGet:
-              path: {{ .Values.probes.readiness.path }}
-              port: http
+            exec:
+              command:
+                {{- toYaml .Values.probes.readiness.command | nindent 16 }}
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}

@@ -350,6 +350,7 @@ jobs:
             "--set", "config.database.host=$($env:POSTGRES_HOST)",
             "--set", "config.database.port=$($env:POSTGRES_PORT)",
             "--set", "config.database.database=$($env:POSTGRES_DB)",
+            "--set", "replicaCount=1",
             "--wait",
             "--timeout", "10m"
           )

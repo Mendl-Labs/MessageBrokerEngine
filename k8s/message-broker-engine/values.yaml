@@ -144,7 +144,7 @@ persistence:
     storageClass: "default"
     size: 5Gi
 
-# Health check configuration
+# Health check configuration (exec probes - no HTTP UI)
 probes:
   liveness:
     enabled: true
@@ -153,7 +153,10 @@ probes:
     timeoutSeconds: 5
     successThreshold: 1
     failureThreshold: 3
-    path: /health
+    command:
+      - /bin/sh
+      - -c
+      - pgrep -x server || exit 1
     
   readiness:
     enabled: true
@@ -162,7 +165,10 @@ probes:
     timeoutSeconds: 3
     successThreshold: 1
     failureThreshold: 3
-    path: /ready
+    command:
+      - /bin/sh
+      - -c
+      - pgrep -x server || exit 1
 
 # Node selector
 nodeSelector: {}
