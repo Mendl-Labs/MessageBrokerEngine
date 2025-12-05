@@ -2,6 +2,7 @@
 // Implements CPU pinning recommendations from latency profiling
 
 use std::thread;
+use crate::logging_facade::PUBLISHER_LOGGER;
 
 #[cfg(target_os = "linux")]
 use libc::{cpu_set_t, sched_setaffinity, CPU_SET, CPU_ZERO};
@@ -130,7 +131,7 @@ impl CpuOptimizer {
         
         #[cfg(not(any(target_os = "linux", target_os = "windows")))]
         {
-            tracing::warn!("CPU affinity not supported on this platform");
+            log_warn!(PUBLISHER_LOGGER, "CPU affinity not supported on this platform");
             Ok(())
         }
     }
@@ -149,7 +150,7 @@ impl CpuOptimizer {
             if result != 0 {
                 Err(CpuAffinityError::SystemError(std::io::Error::last_os_error()))
             } else {
-                tracing::info!("Thread pinned to CPU cores: {:?}", cores);
+                log_info!(PUBLISHER_LOGGER, "Thread pinned to CPU cores: {:?}", cores);
                 Ok(())
             }
         }
@@ -168,7 +169,7 @@ impl CpuOptimizer {
             if result == 0 {
                 Err(CpuAffinityError::SystemError(std::io::Error::last_os_error()))
             } else {
-                tracing::info!("Thread pinned to CPU cores: {:?}", cores);
+                log_info!(PUBLISHER_LOGGER, "Thread pinned to CPU cores: {:?}", cores);
                 Ok(())
             }
         }
@@ -202,7 +203,7 @@ impl CpuOptimizer {
             }
         }
         
-        tracing::info!("Thread priority set to high performance mode");
+        log_info!(PUBLISHER_LOGGER, "Thread priority set to high performance mode");
         Ok(())
     }
     
@@ -219,12 +220,12 @@ impl CpuOptimizer {
             .spawn(move || {
                 // Pin to publisher cores
                 if let Err(e) = optimizer.pin_publisher_thread() {
-                    tracing::warn!("Failed to pin publisher thread: {:?}", e);
+                    log_warn!(PUBLISHER_LOGGER, "Failed to pin publisher thread: {:?}", e);
                 }
                 
                 // Set high priority
                 if let Err(e) = optimizer.set_high_priority() {
-                    tracing::warn!("Failed to set high priority: {:?}", e);
+                    log_warn!(PUBLISHER_LOGGER, "Failed to set high priority: {:?}", e);
                 }
                 
                 // Execute the function
@@ -248,12 +249,12 @@ impl CpuOptimizer {
             .spawn(move || {
                 // Pin to network cores
                 if let Err(e) = optimizer.pin_network_thread() {
-                    tracing::warn!("Failed to pin network thread: {:?}", e);
+                    log_warn!(PUBLISHER_LOGGER, "Failed to pin network thread: {:?}", e);
                 }
                 
                 // Set high priority
                 if let Err(e) = optimizer.set_high_priority() {
-                    tracing::warn!("Failed to set high priority: {:?}", e);
+                    log_warn!(PUBLISHER_LOGGER, "Failed to set high priority: {:?}", e);
                 }
                 
                 // Execute the function
@@ -318,7 +319,7 @@ pub enum CpuAffinityError {
 macro_rules! pin_publisher_thread {
     ($optimizer:expr) => {
         if let Err(e) = $optimizer.pin_publisher_thread() {
-            tracing::warn!("Failed to pin thread: {:?}", e);
+            log_warn!(crate::logging_facade::PUBLISHER_LOGGER, "Failed to pin thread: {:?}", e);
         }
     };
 }
@@ -328,7 +329,7 @@ macro_rules! pin_publisher_thread {
 macro_rules! pin_network_thread {
     ($optimizer:expr) => {
         if let Err(e) = $optimizer.pin_network_thread() {
-            tracing::warn!("Failed to pin thread: {:?}", e);
+            log_warn!(crate::logging_facade::PUBLISHER_LOGGER, "Failed to pin thread: {:?}", e);
         }
     };
 }

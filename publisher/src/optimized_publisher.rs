@@ -7,12 +7,11 @@ use std::time::Instant;
 use parking_lot::RwLock as ParkingRwLock;
 use tokio::sync::Notify;
 use tokio::io::AsyncWriteExt;
-use tracing::{debug, error, info};
 use crossbeam::queue::SegQueue;
 
 use crate::{
     UltraFastPublisher, UltraFastError, PublisherConfig, PendingMessage, 
-    MessagePriority, PerformanceStats, get_rdtsc
+    MessagePriority, PerformanceStats, get_rdtsc, logging_facade::PUBLISHER_LOGGER
 };
 
 /// Enhanced publisher with latency optimizations
@@ -171,7 +170,7 @@ impl OptimizedPublisher {
         // Start background flush task
         self.start_background_flush_task().await;
         
-        info!("🚀 OptimizedPublisher started with background flushing");
+        log_info!(PUBLISHER_LOGGER, "🚀 OptimizedPublisher started with background flushing");
         Ok(())
     }
     
@@ -192,19 +191,19 @@ impl OptimizedPublisher {
                     _ = interval.tick() => {
                         // Time-based flush
                         if let Err(e) = Self::flush_batch(&inner, &batch_buffer, &stats).await {
-                            error!("Background flush failed: {:?}", e);
+                            log_error!(PUBLISHER_LOGGER, "Background flush failed: {:?}", e);
                         }
                     }
                     _ = flush_notify.notified() => {
                         // Event-based flush (for critical messages)
                         if let Err(e) = Self::flush_batch(&inner, &batch_buffer, &stats).await {
-                            error!("Event-triggered flush failed: {:?}", e);
+                            log_error!(PUBLISHER_LOGGER, "Event-triggered flush failed: {:?}", e);
                         }
                     }
                 }
             }
             
-            debug!("Background flush task ended");
+            log_debug!(PUBLISHER_LOGGER, "Background flush task ended");
         });
         
         self.background_flush_handle = Some(handle);
@@ -318,7 +317,7 @@ impl OptimizedPublisher {
             stats.record_message_sent(avg_message_latency, total_bytes / sorted_messages.len() as u64);
         }
         
-        debug!("Batch flushed: {} messages, {} bytes, {}μs", 
+        log_debug!(PUBLISHER_LOGGER, "Batch flushed: {} messages, {} bytes, {}μs", 
             sorted_messages.len(), total_bytes, batch_latency / 1000);
         
         Ok(())
@@ -344,7 +343,7 @@ impl OptimizedPublisher {
         // Disconnect the inner publisher
         self.inner.disconnect().await?;
         
-        info!("🛑 OptimizedPublisher stopped");
+        log_info!(PUBLISHER_LOGGER, "🛑 OptimizedPublisher stopped");
         Ok(())
     }
     

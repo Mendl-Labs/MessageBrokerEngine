@@ -1,4 +1,8 @@
 // Ultra-high performance subscriber for sub-microsecond latency
+
+#[macro_use]
+pub mod logging_facade;
+
 use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;

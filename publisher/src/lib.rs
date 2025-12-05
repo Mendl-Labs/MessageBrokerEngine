@@ -5,8 +5,12 @@ use std::time::Duration;
 
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
-use tracing::{info, warn, debug};
 use crossbeam::queue::SegQueue;
+
+// Ultra-logger integration
+#[macro_use]
+pub mod logging_facade;
+pub use logging_facade::PUBLISHER_LOGGER;
 
 // Import protocol types for DataEngine compatibility
 use protocol::generated::PublishRequest;
@@ -279,12 +283,12 @@ impl UltraFastPublisher {
                 Ok(()) => {
                     self.is_connected.store(true, Ordering::Relaxed);
                     let latency = get_rdtsc() - start_time;
-                    info!("✅ Publisher connected in {}ns (attempt {})", latency, attempt + 1);
+                    log_info!(PUBLISHER_LOGGER, "✅ Publisher connected in {}ns (attempt {})", latency, attempt + 1);
                     return Ok(());
                 }
                 Err(e) => {
                     self.performance_stats.record_connection_failure();
-                    warn!("❌ Connection attempt {} failed: {:?}", attempt + 1, e);
+                    log_warn!(PUBLISHER_LOGGER, "❌ Connection attempt {} failed: {:?}", attempt + 1, e);
                     
                     if attempt < self.config.retry_attempts - 1 {
                         tokio::time::sleep(Duration::from_millis(100 * (1 << attempt))).await;
@@ -308,7 +312,7 @@ impl UltraFastPublisher {
 
         // Configure socket for ultra-low latency
         if let Err(e) = stream.set_nodelay(self.config.tcp_nodelay) {
-            warn!("Failed to set TCP_NODELAY: {}", e);
+            log_warn!(PUBLISHER_LOGGER, "Failed to set TCP_NODELAY: {}", e);
         }
 
         let mut connection = self.connection.write().await;
@@ -417,7 +421,7 @@ impl UltraFastPublisher {
         self.is_connected.store(false, Ordering::Relaxed);
         self.is_running.store(false, Ordering::Relaxed);
 
-        info!("🔌 Publisher disconnected");
+        log_info!(PUBLISHER_LOGGER, "🔌 Publisher disconnected");
         Ok(())
     }
 
@@ -495,7 +499,7 @@ impl Publisher {
                 if let Some(ref payload) = request.payload {
                     match payload {
                         protocol::generated::publish_request::Payload::MarketPayload(market_msg) => {
-                            debug!("Publishing market message to topic: {}", topic);
+                            log_debug!(PUBLISHER_LOGGER, "Publishing market message to topic: {}", topic);
                             // Serialize the protobuf message
                             let mut buf = Vec::new();
                             market_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
@@ -508,7 +512,7 @@ impl Publisher {
                             self.inner.publish_raw(full_message, topic).await
                         },
                         protocol::generated::publish_request::Payload::PortfolioPayload(portfolio_msg) => {
-                            debug!("Publishing portfolio message to topic: {}", topic);
+                            log_debug!(PUBLISHER_LOGGER, "Publishing portfolio message to topic: {}", topic);
                             // Serialize the protobuf message
                             let mut buf = Vec::new();
                             portfolio_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
@@ -521,7 +525,7 @@ impl Publisher {
                             self.inner.publish_raw(full_message, topic).await
                         },
                         _ => {
-                            debug!("Publishing generic message to topic: {}", topic);
+                            log_debug!(PUBLISHER_LOGGER, "Publishing generic message to topic: {}", topic);
                             // For other message types, serialize as JSON
                             let json_data = serde_json::to_vec(&request).map_err(|_| UltraFastError::SerializationFailed)?;
                             self.inner.publish_raw(json_data, topic).await

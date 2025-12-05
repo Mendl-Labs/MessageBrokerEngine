@@ -5,6 +5,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use crossbeam::queue::SegQueue;
 
+use crate::logging_facade::PUBLISHER_LOGGER;
+
 /// High-performance memory pool for message buffers
 pub struct MessageBufferPool {
     small_buffers: SegQueue<Vec<u8>>,      // 1KB buffers
@@ -159,7 +161,7 @@ impl MessageBufferPool {
             self.large_buffers.push(buffer);
         }
         
-        tracing::info!("Pre-allocated {} small, {} medium, {} large buffers",
+        log_info!(PUBLISHER_LOGGER, "Pre-allocated {} small, {} medium, {} large buffers",
             self.config.small_pool_size, self.config.medium_pool_size, self.config.large_pool_size);
     }
     
