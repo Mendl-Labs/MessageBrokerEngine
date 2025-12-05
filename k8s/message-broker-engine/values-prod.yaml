@@ -23,9 +23,6 @@ config:
     level: "INFO"
     enable_file_logging: true
     
-  redis:
-    enabled: true
-    
   security:
     enable_tls: true
 

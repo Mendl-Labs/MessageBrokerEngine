@@ -30,27 +30,6 @@ spec:
       serviceAccountName: {{ include "message-broker-engine.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      initContainers:
-        {{- if .Values.config.redis.enabled }}
-        - name: wait-for-redis
-          image: "redis:7-alpine"
-          command:
-            - sh
-            - -c
-            - |
-              until redis-cli -h {{ .Values.config.redis.host }} -p {{ .Values.config.redis.port }} ping; do
-                echo "Waiting for Redis to be ready..."
-                sleep 2
-              done
-          {{- if .Values.secrets.redis_password }}
-          env:
-            - name: REDISCLI_AUTH
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "message-broker-engine.fullname" . }}-secret
-                  key: redis-password
-          {{- end }}
-        {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -68,13 +47,24 @@ spec:
                 name: {{ include "message-broker-engine.fullname" . }}-config
           {{- end }}
           env:
-            {{- if .Values.secrets.redis_password }}
-            - name: REDIS_PASSWORD
+            # Elasticsearch/Logging Configuration
+            - name: USE_ELASTICSEARCH_LOGGING
+              value: "true"
+            - name: ELASTICSEARCH_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "message-broker-engine.fullname" . }}-secret
-                  key: redis-password
-            {{- end }}
+                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "message-broker-engine.fullname" .)) }}
+                  key: elasticsearch-endpoint
+            - name: ELASTICSEARCH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "message-broker-engine.fullname" .)) }}
+                  key: elasticsearch-username
+            - name: ELASTICSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "message-broker-engine.fullname" .)) }}
+                  key: elasticsearch-password
             {{- if .Values.config.security.enable_tls }}
             - name: TLS_CERT_PATH
               value: {{ .Values.config.security.cert_path }}

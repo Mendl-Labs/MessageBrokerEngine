@@ -24,14 +24,6 @@ data:
   ENABLE_FILE_LOGGING: "{{ .Values.config.logging.enable_file_logging }}"
   LOG_DIRECTORY: "{{ .Values.config.logging.log_directory }}"
   
-  # Redis Configuration
-  REDIS_ENABLED: "{{ .Values.config.redis.enabled }}"
-  {{- if .Values.config.redis.enabled }}
-  REDIS_HOST: "{{ .Values.config.redis.host }}"
-  REDIS_PORT: "{{ .Values.config.redis.port }}"
-  REDIS_DATABASE: "{{ .Values.config.redis.database }}"
-  {{- end }}
-  
   # Security Settings
   ENABLE_TLS: "{{ .Values.config.security.enable_tls }}"
   {{- if .Values.config.security.enable_tls }}
@@ -62,14 +54,6 @@ data:
       enable_file_logging: {{ .Values.config.logging.enable_file_logging }}
       log_directory: {{ .Values.config.logging.log_directory }}
       
-    {{- if .Values.config.redis.enabled }}
-    redis:
-      enabled: {{ .Values.config.redis.enabled }}
-      host: {{ .Values.config.redis.host }}
-      port: {{ .Values.config.redis.port }}
-      database: {{ .Values.config.redis.database }}
-    {{- end }}
-    
     {{- if .Values.config.security.enable_tls }}
     security:
       enable_tls: {{ .Values.config.security.enable_tls }}

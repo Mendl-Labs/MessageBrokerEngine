@@ -110,13 +110,6 @@ config:
     enable_file_logging: false
     log_directory: "/var/log/message-broker"
     
-  # Redis configuration (if enabled)
-  redis:
-    enabled: false
-    host: "redis-service"
-    port: 6379
-    database: 0
-    
   # Security settings
   security:
     enable_tls: false
@@ -128,8 +121,6 @@ envFromConfigMap: true
 
 # Secrets configuration
 secrets:
-  # Redis password (if redis enabled)
-  redis_password: ""
   # TLS certificates (if TLS enabled)
   tls_cert: ""
   tls_key: ""
