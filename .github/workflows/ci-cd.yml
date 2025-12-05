@@ -43,13 +43,6 @@ jobs:
         with:
           path: MessageBrokerEngine
 
-      - name: Checkout databaseschema
-        uses: actions/checkout@v4
-        with:
-          repository: Nwagbara-Group-LLC/databaseschema
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          path: databaseschema
-
       - name: Checkout LoggingEngine
         uses: actions/checkout@v4
         with:
@@ -152,14 +145,6 @@ jobs:
           path: MessageBrokerEngine
           fetch-depth: 0
 
-      - name: Checkout databaseschema
-        uses: actions/checkout@v4
-        with:
-          repository: Nwagbara-Group-LLC/databaseschema
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          path: databaseschema
-          fetch-depth: 0
-
       - name: Checkout LoggingEngine
         uses: actions/checkout@v4
         with:
@@ -181,7 +166,7 @@ jobs:
           Write-Host "Building Docker image..."
           $startTime = Get-Date
           
-          $requiredDeps = @("databaseschema", "LoggingEngine")
+          $requiredDeps = @("LoggingEngine")
           foreach ($dep in $requiredDeps) {
             if (Test-Path $dep) {
               Write-Host "[OK] Dependency found: $dep"
@@ -193,13 +178,12 @@ jobs:
           
           # Get dependency commit SHAs for cache busting
           $loggingSha = (git -C LoggingEngine rev-parse --short HEAD)
-          $dbSchemaSha = (git -C databaseschema rev-parse --short HEAD)
-          Write-Host "[INFO] Dependency versions: LoggingEngine=$loggingSha, databaseschema=$dbSchemaSha"
+          Write-Host "[INFO] Dependency versions: LoggingEngine=$loggingSha"
           
           $shortSha = "${{ github.sha }}".Substring(0, 7)
           Write-Host "[INFO] Building with immutable tag: $shortSha"
           
-          docker build --platform linux/amd64 --tag ${{ env.IMAGE_NAME }}:$shortSha --file MessageBrokerEngine/Dockerfile --build-arg LOGGING_ENGINE_SHA=$loggingSha --build-arg DATABASE_SCHEMA_SHA=$dbSchemaSha --progress=plain .
+          docker build --platform linux/amd64 --tag ${{ env.IMAGE_NAME }}:$shortSha --file MessageBrokerEngine/Dockerfile --build-arg LOGGING_ENGINE_SHA=$loggingSha --progress=plain .
           
           if ($LASTEXITCODE -ne 0) {
             throw "Docker build failed"
