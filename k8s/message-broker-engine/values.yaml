@@ -1,6 +1,9 @@
 # Message Broker Engine Helm Chart Values
 # Production-ready configuration for high-performance message broker
 
+# Override the full name of resources (prevents "release-name-chart-name" duplication)
+fullnameOverride: "message-broker-engine"
+
 # Image configuration
 image:
   repository: prodtradingbotregistry.azurecr.io/message-broker-engine
