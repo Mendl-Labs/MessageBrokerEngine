@@ -28,14 +28,14 @@
    kubectl logs -f deployment/{{ include "message-broker-engine.fullname" . }} -n {{ .Release.Namespace }}
 
 4. Monitor metrics (if enabled):
-{{- if .Values.metrics.enabled }}
+{{- if and .Values.metrics .Values.metrics.enabled }}
    kubectl port-forward svc/{{ include "message-broker-engine.fullname" . }} {{ .Values.metrics.port }}:{{ .Values.metrics.port }} -n {{ .Release.Namespace }}
    # Then visit http://localhost:{{ .Values.metrics.port }}/metrics
 {{- else }}
    Metrics are disabled. Enable them by setting metrics.enabled=true
 {{- end }}
 
-{{- if .Values.redis.external.enabled }}
+{{- if and .Values.redis .Values.redis.external .Values.redis.external.enabled }}
 5. External Redis Configuration:
    Make sure your external Redis instance at {{ .Values.redis.external.host }}:{{ .Values.redis.external.port }} is accessible from the cluster.
 {{- else }}
@@ -43,7 +43,7 @@
    This chart requires Redis to be deployed separately. Make sure Redis is available in your cluster.
 {{- end }}
 
-{{- if .Values.autoscaling.enabled }}
+{{- if and .Values.autoscaling .Values.autoscaling.enabled }}
 6. Horizontal Pod Autoscaler:
    The HPA is configured to scale between {{ .Values.autoscaling.minReplicas }} and {{ .Values.autoscaling.maxReplicas }} replicas.
    Monitor scaling: kubectl get hpa {{ include "message-broker-engine.fullname" . }} -n {{ .Release.Namespace }}
