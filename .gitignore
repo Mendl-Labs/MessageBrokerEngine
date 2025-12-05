@@ -1,6 +1,7 @@
 # Rust build artifacts
 target/
-Cargo.lock
+# Note: Cargo.lock should be committed for binary applications
+# Cargo.lock
 *.pdb
 
 # IDE and Editor files
