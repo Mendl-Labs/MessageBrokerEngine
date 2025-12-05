@@ -12,7 +12,37 @@ use parking_lot::RwLock;
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex as TokioMutex;
-use tracing::{debug, error, info, warn};
+
+// Use the logger from parent module
+use crate::TOPIC_LOGGER;
+
+// Synchronous logging macros for ultra_fast
+macro_rules! uf_info {
+    ($msg:expr) => {
+        TOPIC_LOGGER.info_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        TOPIC_LOGGER.info_sync(format!($fmt, $($arg)*));
+    };
+}
+
+macro_rules! uf_warn {
+    ($msg:expr) => {
+        TOPIC_LOGGER.warn_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        TOPIC_LOGGER.warn_sync(format!($fmt, $($arg)*));
+    };
+}
+
+macro_rules! uf_debug {
+    ($msg:expr) => {
+        TOPIC_LOGGER.debug_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        TOPIC_LOGGER.debug_sync(format!($fmt, $($arg)*));
+    };
+}
 
 use protocol::broker::messages::publish_request::Payload;
 
@@ -469,7 +499,7 @@ impl TopicManager {
         
         self.total_topics.fetch_add(1, Ordering::Relaxed);
         
-        info!("Created new topic: {}", topic_name);
+        uf_info!("Created new topic: {}", topic_name);
         Ok(topic)
     }
 
@@ -549,11 +579,11 @@ impl TopicManagerTrait for TopicManager {
         for topic_name in topics {
             let topic = self.get_or_create_topic(topic_name)?;
             topic.add_subscriber(Arc::clone(&subscriber))?;
-            debug!("Subscriber {} subscribed to topic '{}'", id, topic_name);
+            uf_debug!("Subscriber {} subscribed to topic '{}'", id, topic_name);
         }
 
         let end_time = unsafe { std::arch::x86_64::_rdtsc() };
-        debug!("Subscription completed in {} cycles", end_time - start_time);
+        uf_debug!("Subscription completed in {} cycles", end_time - start_time);
 
         Ok(())
     }
@@ -568,7 +598,7 @@ impl TopicManagerTrait for TopicManager {
         for topic_name in topics {
             if let Some(topic) = self.get_topic_by_name(topic_name) {
                 topic.remove_subscriber(subscriber_id);
-                debug!("Subscriber {} unsubscribed from topic '{}'", subscriber_id, topic_name);
+                uf_debug!("Subscriber {} unsubscribed from topic '{}'", subscriber_id, topic_name);
             }
         }
 
@@ -597,7 +627,7 @@ impl TopicManagerTrait for TopicManager {
         self.total_bytes.fetch_add(serialized.len() as u64, Ordering::Relaxed);
 
         let end_time = unsafe { std::arch::x86_64::_rdtsc() };
-        debug!("Published to {} subscribers on topic '{}' in {} cycles", 
+        uf_debug!("Published to {} subscribers on topic '{}' in {} cycles", 
                delivered, topic_name, end_time - start_time);
 
         Ok(())
@@ -619,7 +649,7 @@ impl TopicManagerTrait for TopicManager {
         }
 
         if total_cleaned > 0 {
-            info!("Cleaned up {} inactive subscribers", total_cleaned);
+            uf_info!("Cleaned up {} inactive subscribers", total_cleaned);
         }
 
         total_cleaned
@@ -646,18 +676,18 @@ impl TopicManager {
                 // Flush all queued messages
                 let flushed = manager.flush_all_topics().await;
                 if flushed > 0 {
-                    debug!("Flushed {} messages from topic queues", flushed);
+                    uf_debug!("Flushed {} messages from topic queues", flushed);
                 }
                 
                 // Clean up inactive subscribers
                 let cleaned = manager.cleanup_inactive().await;
                 if cleaned > 0 {
-                    debug!("Cleaned up {} inactive subscribers", cleaned);
+                    uf_debug!("Cleaned up {} inactive subscribers", cleaned);
                 }
                 
                 // Log global stats
                 let stats = manager.get_global_stats();
-                info!("Global stats - Topics: {}, Subscribers: {}, Messages: {}, Bytes: {}", 
+                uf_info!("Global stats - Topics: {}, Subscribers: {}, Messages: {}, Bytes: {}", 
                       stats.total_topics, stats.total_subscribers, stats.total_messages, stats.total_bytes);
             }
         });

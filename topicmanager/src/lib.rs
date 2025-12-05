@@ -9,12 +9,80 @@ use crossbeam_utils::CachePadded;
 use parking_lot::RwLock;
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
-use tracing::{debug, info};
+
+// Ultra-Logger for high-performance logging
+use ultra_logger::{UltraLogger, LoggerConfig, TransportConfig, ConnectionConfig};
+use once_cell::sync::Lazy;
 
 use protocol::broker::messages::publish_request::Payload;
 
 pub mod routing;
 pub use routing::{IntelligentMessageRouter, TopicSubscriptionManager, RoutingRule, RoutingPattern, MessageFilter};
+
+// Create Elasticsearch configuration for topicmanager
+fn create_elasticsearch_config(component: &str) -> LoggerConfig {
+    let use_elasticsearch = std::env::var("USE_ELASTICSEARCH_LOGGING")
+        .map(|v| v.to_lowercase() == "true")
+        .unwrap_or(true);
+
+    if use_elasticsearch {
+        let endpoint = std::env::var("ELASTICSEARCH_ENDPOINT")
+            .or_else(|_| std::env::var("ELASTIC_CLOUD_ENDPOINT"))
+            .unwrap_or_else(|_| "https://trading-bot-observability-6b76eb.es.us-central1.gcp.cloud.es.io".to_string());
+        let username = std::env::var("ELASTICSEARCH_USERNAME")
+            .or_else(|_| std::env::var("ELASTIC_CLOUD_USERNAME"))
+            .unwrap_or_else(|_| "elastic".to_string());
+        let password = std::env::var("ELASTICSEARCH_PASSWORD")
+            .or_else(|_| std::env::var("ELASTIC_CLOUD_PASSWORD"))
+            .unwrap_or_default();
+
+        let mut options = std::collections::HashMap::new();
+        options.insert("index".to_string(), format!("messagebroker-{}-logs", component));
+
+        LoggerConfig {
+            level: std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
+            transport: TransportConfig {
+                transport_type: "elasticsearch".to_string(),
+                connection: ConnectionConfig {
+                    host: endpoint,
+                    port: 443,
+                    username: Some(username),
+                    password: Some(password),
+                    options,
+                },
+            },
+        }
+    } else {
+        LoggerConfig::default()
+    }
+}
+
+/// Topic manager logger instance
+pub static TOPIC_LOGGER: Lazy<Arc<UltraLogger>> = Lazy::new(|| {
+    Arc::new(UltraLogger::with_config(
+        "MessageBrokerEngine-topicmanager".to_string(),
+        create_elasticsearch_config("topicmanager")
+    ))
+});
+
+// Synchronous logging macros for topicmanager
+macro_rules! topic_info {
+    ($msg:expr) => {
+        TOPIC_LOGGER.info_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        TOPIC_LOGGER.info_sync(format!($fmt, $($arg)*));
+    };
+}
+
+macro_rules! topic_debug {
+    ($msg:expr) => {
+        TOPIC_LOGGER.debug_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        TOPIC_LOGGER.debug_sync(format!($fmt, $($arg)*));
+    };
+}
 
 // Constants for ultra-low latency
 const MAX_TOPICS: usize = 10000;
@@ -178,7 +246,7 @@ impl UltraFastTopic {
         subscribers.insert(subscriber_id, subscriber);
         self.subscriber_count.store(subscribers.len(), Ordering::Relaxed);
         
-        info!("Added subscriber {} to topic '{}'", subscriber_id, self.name.as_str());
+        topic_info!("Added subscriber {} to topic '{}'", subscriber_id, self.name.as_str());
     }
     
     pub fn remove_subscriber(&self, subscriber_id: u64) -> bool {
@@ -186,7 +254,7 @@ impl UltraFastTopic {
         let removed = subscribers.remove(&subscriber_id).is_some();
         if removed {
             self.subscriber_count.store(subscribers.len(), Ordering::Relaxed);
-            info!("Removed subscriber {} from topic '{}'", subscriber_id, self.name.as_str());
+            topic_info!("Removed subscriber {} from topic '{}'", subscriber_id, self.name.as_str());
         }
         removed
     }
@@ -241,7 +309,7 @@ impl UltraFastTopic {
         }
         
         let end_time = get_rdtsc();
-        debug!("Sent batch of {} messages to {} subscribers in {} cycles", 
+        topic_debug!("Sent batch of {} messages to {} subscribers in {} cycles", 
                batch.len(), subscribers.len(), end_time - start_time);
         
         total_sent
@@ -335,7 +403,7 @@ impl TopicManager for UltraFastTopicManager {
         topics.insert(topic_hash, topic);
         self.topic_count.store(topics.len(), Ordering::Relaxed);
         
-        info!("Created topic '{}' with hash {}", topic_name, topic_hash);
+        topic_info!("Created topic '{}' with hash {}", topic_name, topic_hash);
         Ok(())
     }
     
@@ -349,7 +417,7 @@ impl TopicManager for UltraFastTopicManager {
         let removed = topics.remove(&topic_hash).is_some();
         if removed {
             self.topic_count.store(topics.len(), Ordering::Relaxed);
-            info!("Deleted topic '{}' with hash {}", topic_name, topic_hash);
+            topic_info!("Deleted topic '{}' with hash {}", topic_name, topic_hash);
         }
         Ok(removed)
     }
@@ -410,7 +478,7 @@ impl TopicManager for UltraFastTopicManager {
         };
         
         let end_time = get_rdtsc();
-        debug!("Flushed {} topics in {} cycles", topic_count, end_time - start_time);
+        topic_debug!("Flushed {} topics in {} cycles", topic_count, end_time - start_time);
         
         topic_count as u64
     }

@@ -4,9 +4,30 @@ use std::sync::Arc;
 use parking_lot::RwLock;
 use regex::Regex;
 use wildmatch::WildMatch;
-use tracing::{info, debug};
 use lru::LruCache;
 use std::num::NonZeroUsize;
+
+// Use the logger from parent module
+use crate::TOPIC_LOGGER;
+
+// Synchronous logging macros for routing
+macro_rules! route_info {
+    ($msg:expr) => {
+        TOPIC_LOGGER.info_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        TOPIC_LOGGER.info_sync(format!($fmt, $($arg)*));
+    };
+}
+
+macro_rules! route_debug {
+    ($msg:expr) => {
+        TOPIC_LOGGER.debug_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        TOPIC_LOGGER.debug_sync(format!($fmt, $($arg)*));
+    };
+}
 
 /// Maximum number of cached routing results to prevent memory leaks
 const ROUTING_CACHE_SIZE: usize = 1000;
@@ -80,7 +101,7 @@ impl IntelligentMessageRouter {
             self.compiled_regexes.write().insert(rule.id.clone(), regex);
         }
         
-        info!("Added routing rule: {} -> {:?}", rule.id, rule.pattern);
+        route_info!("Added routing rule: {} -> {:?}", rule.id, rule.pattern);
         routes.insert(rule.id.clone(), rule);
         
         // Clear cache since routing rules changed
@@ -97,7 +118,7 @@ impl IntelligentMessageRouter {
         if removed {
             self.compiled_regexes.write().remove(rule_id);
             self.topic_cache.write().clear();
-            info!("Removed routing rule: {}", rule_id);
+            route_info!("Removed routing rule: {}", rule_id);
         }
         
         removed
@@ -155,7 +176,7 @@ impl IntelligentMessageRouter {
             }
         }
         
-        debug!("Routed message '{}' to {} subscribers using {} rules in {}ns", 
+        route_debug!("Routed message '{}' to {} subscribers using {} rules in {}ns", 
               topic, target_subscribers.len(), matching_rule_ids.len(), routing_time.as_nanos());
         
         target_subscribers.into_iter().collect()
@@ -247,7 +268,7 @@ impl IntelligentMessageRouter {
     /// Clear routing cache
     pub fn clear_cache(&self) {
         self.topic_cache.write().clear();
-        info!("Routing cache cleared");
+        route_info!("Routing cache cleared");
     }
     
     /// Get all active routes
@@ -275,7 +296,7 @@ impl IntelligentMessageRouter {
         if let Some(rule) = routes.get_mut(rule_id) {
             rule.enabled = enabled;
             self.topic_cache.write().clear(); // Clear cache
-            info!("Route {} {}", rule_id, if enabled { "enabled" } else { "disabled" });
+            route_info!("Route {} {}", rule_id, if enabled { "enabled" } else { "disabled" });
             true
         } else {
             false
@@ -358,7 +379,7 @@ impl TopicSubscriptionManager {
             .or_insert_with(HashSet::new)
             .insert(subscriber_id);
         
-        info!("Subscriber {} subscribed to topic '{}'", subscriber_id, subscription.topic_pattern);
+        route_info!("Subscriber {} subscribed to topic '{}'", subscriber_id, subscription.topic_pattern);
     }
     
     /// Unsubscribe from a topic
@@ -382,7 +403,7 @@ impl TopicSubscriptionManager {
             }
         }
         
-        info!("Subscriber {} unsubscribed from topic '{}'", subscriber_id, topic_pattern);
+        route_info!("Subscriber {} unsubscribed from topic '{}'", subscriber_id, topic_pattern);
         true
     }
     

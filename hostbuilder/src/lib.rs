@@ -4,15 +4,110 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
+use std::collections::HashMap;
 
 use tokio::net::{TcpListener, TcpStream};
-use tracing::{info, error, warn, debug};
+
+// Ultra-Logger for high-performance logging
+use ultra_logger::{UltraLogger, LoggerConfig, TransportConfig, ConnectionConfig};
+use once_cell::sync::Lazy;
 
 pub mod wal;
 pub mod flow_control;
 
 pub use wal::{WriteAheadLog, WALConfig, WALEntry};
 pub use flow_control::{FlowControlManager, BackpressureConfig, FlowControlStrategy};
+
+// Create Elasticsearch configuration for hostbuilder
+fn create_elasticsearch_config(component: &str) -> LoggerConfig {
+    let use_elasticsearch = std::env::var("USE_ELASTICSEARCH_LOGGING")
+        .map(|v| v.to_lowercase() == "true")
+        .unwrap_or(true);
+
+    if use_elasticsearch {
+        let endpoint = std::env::var("ELASTICSEARCH_ENDPOINT")
+            .or_else(|_| std::env::var("ELASTIC_CLOUD_ENDPOINT"))
+            .unwrap_or_else(|_| "https://trading-bot-observability-6b76eb.es.us-central1.gcp.cloud.es.io".to_string());
+        let username = std::env::var("ELASTICSEARCH_USERNAME")
+            .or_else(|_| std::env::var("ELASTIC_CLOUD_USERNAME"))
+            .unwrap_or_else(|_| "elastic".to_string());
+        let password = std::env::var("ELASTICSEARCH_PASSWORD")
+            .or_else(|_| std::env::var("ELASTIC_CLOUD_PASSWORD"))
+            .unwrap_or_default();
+
+        let mut options = HashMap::new();
+        options.insert("index".to_string(), format!("messagebroker-{}-logs", component));
+
+        LoggerConfig {
+            level: std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
+            transport: TransportConfig {
+                transport_type: "elasticsearch".to_string(),
+                connection: ConnectionConfig {
+                    host: endpoint,
+                    port: 443,
+                    username: Some(username),
+                    password: Some(password),
+                    options,
+                },
+            },
+        }
+    } else {
+        LoggerConfig::default()
+    }
+}
+
+/// Host builder logger instance
+pub static HOST_LOGGER: Lazy<Arc<UltraLogger>> = Lazy::new(|| {
+    Arc::new(UltraLogger::with_config(
+        "MessageBrokerEngine-hostbuilder".to_string(),
+        create_elasticsearch_config("hostbuilder")
+    ))
+});
+
+/// Connection logger instance
+pub static CONN_LOGGER: Lazy<Arc<UltraLogger>> = Lazy::new(|| {
+    Arc::new(UltraLogger::with_config(
+        "MessageBrokerEngine-connection".to_string(),
+        create_elasticsearch_config("connection")
+    ))
+});
+
+// Synchronous logging macros for hostbuilder
+macro_rules! host_info {
+    ($msg:expr) => {
+        HOST_LOGGER.info_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        HOST_LOGGER.info_sync(format!($fmt, $($arg)*));
+    };
+}
+
+macro_rules! host_warn {
+    ($msg:expr) => {
+        HOST_LOGGER.warn_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        HOST_LOGGER.warn_sync(format!($fmt, $($arg)*));
+    };
+}
+
+macro_rules! host_error {
+    ($msg:expr) => {
+        HOST_LOGGER.error_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        HOST_LOGGER.error_sync(format!($fmt, $($arg)*));
+    };
+}
+
+macro_rules! host_debug {
+    ($msg:expr) => {
+        HOST_LOGGER.debug_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        HOST_LOGGER.debug_sync(format!($fmt, $($arg)*));
+    };
+}
 
 // Cross-platform ultra-fast timestamp function
 #[cfg(target_arch = "x86_64")]
@@ -477,7 +572,7 @@ impl MessageBrokerHost {
             match WriteAheadLog::new(config.wal_config.clone()) {
                 Ok(wal) => Some(Arc::new(wal)),
                 Err(e) => {
-                    warn!("Failed to initialize WAL: {}, continuing without persistence", e);
+                    host_warn!("Failed to initialize WAL: {}, continuing without persistence", e);
                     None
                 }
             }
@@ -499,23 +594,23 @@ impl MessageBrokerHost {
     }
 
     pub async fn start(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        info!("🚀 Starting Enhanced Ultra-High Performance Message Broker");
-        info!("   WAL Enabled: {}", self.config.enable_wal);
-        info!("   Flow Control: {:?}", self.config.flow_control_config.strategy);
-        info!("   Compression: {}", self.config.enable_compression);
-        info!("   Intelligent Routing: {}", self.config.enable_intelligent_routing);
+        host_info!("🚀 Starting Enhanced Ultra-High Performance Message Broker");
+        host_info!("   WAL Enabled: {}", self.config.enable_wal);
+        host_info!("   Flow Control: {:?}", self.config.flow_control_config.strategy);
+        host_info!("   Compression: {}", self.config.enable_compression);
+        host_info!("   Intelligent Routing: {}", self.config.enable_intelligent_routing);
 
         self.is_running.store(true, Ordering::Relaxed);
         
         // Bind to address
         let listener = TcpListener::bind(format!("{}:{}", self.config.host, self.config.port)).await?;
-        info!("Enhanced Message Broker listening on {}:{}", self.config.host, self.config.port);
+        host_info!("Enhanced Message Broker listening on {}:{}", self.config.host, self.config.port);
 
         // Accept connections
         while self.is_running.load(Ordering::Relaxed) {
             match listener.accept().await {
                 Ok((stream, addr)) => {
-                    debug!("New connection from: {}", addr);
+                    host_debug!("New connection from: {}", addr);
                     
                     // Check flow control
                     match self.flow_control.acquire_permit().await {
@@ -528,16 +623,16 @@ impl MessageBrokerHost {
                                 connections.insert(conn_id, connection);
                             }
                             
-                            info!("Connection {} accepted with flow control", conn_id);
+                            host_info!("Connection {} accepted with flow control", conn_id);
                         }
                         Err(e) => {
-                            warn!("Connection rejected due to flow control: {}", e);
+                            host_warn!("Connection rejected due to flow control: {}", e);
                             self.metrics.rejected_connections.fetch_add(1, Ordering::Relaxed);
                         }
                     }
                 }
                 Err(e) => {
-                    error!("Error accepting connection: {}", e);
+                    host_error!("Error accepting connection: {}", e);
                     self.metrics.errors.fetch_add(1, Ordering::Relaxed);
                 }
             }
@@ -547,7 +642,7 @@ impl MessageBrokerHost {
     }
 
     pub fn stop(&self) {
-        info!("Stopping Enhanced Message Broker");
+        host_info!("Stopping Enhanced Message Broker");
         self.is_running.store(false, Ordering::Relaxed);
     }
 

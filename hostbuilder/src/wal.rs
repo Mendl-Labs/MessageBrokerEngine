@@ -6,7 +6,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize, Deserialize};
 use tokio::sync::mpsc;
-use tracing::{info, error, warn};
+
+// Use the logger from parent module
+use crate::HOST_LOGGER;
 
 /// Write-Ahead Log entry for message persistence
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,7 +74,7 @@ impl WriteAheadLog {
             
             while let Some(entry) = rx.recv().await {
                 if let Err(e) = wal_writer.write_entry(&entry).await {
-                    error!("WAL write error: {}", e);
+                    HOST_LOGGER.error_sync(format!("WAL write error: {}", e));
                 }
             }
         });
@@ -138,7 +140,7 @@ impl WriteAheadLog {
                     if crc32fast::hash(&entry.message_data) == entry.checksum {
                         entries.push(entry);
                     } else {
-                        warn!("WAL entry checksum mismatch, skipping");
+                        HOST_LOGGER.warn_sync("WAL entry checksum mismatch, skipping".to_string());
                     }
                 }
             }
@@ -149,7 +151,7 @@ impl WriteAheadLog {
             *self.sequence_number.lock().unwrap() = max_seq;
         }
         
-        info!("Recovered {} messages from WAL", entries.len());
+        HOST_LOGGER.info_sync(format!("Recovered {} messages from WAL", entries.len()));
         Ok(entries)
     }
     
@@ -157,7 +159,7 @@ impl WriteAheadLog {
     pub async fn compact(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Implementation would merge old WAL files and remove duplicates
         // For now, just log the operation
-        info!("WAL compaction completed");
+        HOST_LOGGER.info_sync("WAL compaction completed".to_string());
         Ok(())
     }
 }
@@ -245,7 +247,7 @@ impl WALWriter {
             
             for file_to_remove in files.iter().take(files.len() - self.config.max_files) {
                 if let Err(e) = std::fs::remove_file(file_to_remove.path()) {
-                    warn!("Failed to remove old WAL file: {}", e);
+                    HOST_LOGGER.warn_sync(format!("Failed to remove old WAL file: {}", e));
                 }
             }
         }

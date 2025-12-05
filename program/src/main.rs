@@ -1,12 +1,100 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{info, error};
-use tracing_subscriber;
+use std::collections::HashMap;
 use crossbeam::channel;
 use std::sync::atomic::{AtomicU64, Ordering};
 use serde::{Serialize, Deserialize};
 
+// Ultra-Logger for high-performance logging
+use ultra_logger::{UltraLogger, LoggerConfig, TransportConfig, ConnectionConfig};
+use once_cell::sync::Lazy;
+
 use hostbuilder::{MessageBrokerHost, BrokerConfig};
+
+// Global logger instances for MessageBrokerEngine
+fn create_elasticsearch_config(component: &str) -> LoggerConfig {
+    let use_elasticsearch = std::env::var("USE_ELASTICSEARCH_LOGGING")
+        .map(|v| v.to_lowercase() == "true")
+        .unwrap_or(true);
+
+    if use_elasticsearch {
+        let endpoint = std::env::var("ELASTICSEARCH_ENDPOINT")
+            .or_else(|_| std::env::var("ELASTIC_CLOUD_ENDPOINT"))
+            .unwrap_or_else(|_| "https://trading-bot-observability-6b76eb.es.us-central1.gcp.cloud.es.io".to_string());
+        let username = std::env::var("ELASTICSEARCH_USERNAME")
+            .or_else(|_| std::env::var("ELASTIC_CLOUD_USERNAME"))
+            .unwrap_or_else(|_| "elastic".to_string());
+        let password = std::env::var("ELASTICSEARCH_PASSWORD")
+            .or_else(|_| std::env::var("ELASTIC_CLOUD_PASSWORD"))
+            .unwrap_or_default();
+
+        let mut options = HashMap::new();
+        options.insert("index".to_string(), format!("messagebroker-{}-logs", component));
+
+        LoggerConfig {
+            level: std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
+            transport: TransportConfig {
+                transport_type: "elasticsearch".to_string(),
+                connection: ConnectionConfig {
+                    host: endpoint,
+                    port: 443,
+                    username: Some(username),
+                    password: Some(password),
+                    options,
+                },
+            },
+        }
+    } else {
+        LoggerConfig::default()
+    }
+}
+
+/// Main broker logger instance
+pub static BROKER_LOGGER: Lazy<Arc<UltraLogger>> = Lazy::new(|| {
+    Arc::new(UltraLogger::with_config(
+        "MessageBrokerEngine-main".to_string(),
+        create_elasticsearch_config("main")
+    ))
+});
+
+/// Performance metrics logger
+pub static PERF_LOGGER: Lazy<Arc<UltraLogger>> = Lazy::new(|| {
+    Arc::new(UltraLogger::with_config(
+        "MessageBrokerEngine-performance".to_string(),
+        create_elasticsearch_config("performance")
+    ))
+});
+
+// Logging macros for async context
+macro_rules! broker_info {
+    ($fmt:expr $(, $arg:expr)*) => {{
+        let logger = BROKER_LOGGER.clone();
+        let msg = format!($fmt $(, $arg)*);
+        tokio::spawn(async move {
+            let _ = logger.info(msg).await;
+        });
+    }};
+}
+
+macro_rules! broker_error {
+    ($fmt:expr $(, $arg:expr)*) => {{
+        let logger = BROKER_LOGGER.clone();
+        let msg = format!($fmt $(, $arg)*);
+        tokio::spawn(async move {
+            let _ = logger.error(msg).await;
+        });
+    }};
+}
+
+macro_rules! perf_info {
+    ($fmt:expr $(, $arg:expr)*) => {{
+        let logger = PERF_LOGGER.clone();
+        let msg = format!($fmt $(, $arg)*);
+        tokio::spawn(async move {
+            let _ = logger.info(msg).await;
+        });
+    }};
+}
 
 // Simplified ultra-fast message structures for Phase 1 integration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,7 +120,7 @@ pub struct UltraProductionBroker {
 
 impl UltraProductionBroker {
     pub async fn new(_bind_addr: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        info!("🚀 Initializing Ultra-Fast Production Broker (Phase 1 Integration)");
+        broker_info!("🚀 Initializing Ultra-Fast Production Broker (Phase 1 Integration)");
         Ok(Self {
             messages_processed: AtomicU64::new(0),
             bytes_processed: AtomicU64::new(0),
@@ -41,7 +129,7 @@ impl UltraProductionBroker {
     }
     
     pub async fn subscribe(&self, topic: String, _subscriber: channel::Sender<UltraMessage>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        info!("✅ Ultra-fast subscribed to topic: {}", topic);
+        broker_info!("✅ Ultra-fast subscribed to topic: {}", topic);
         Ok(())
     }
     
@@ -51,7 +139,7 @@ impl UltraProductionBroker {
         
         let count = self.messages_processed.load(Ordering::Relaxed);
         if count % 1000 == 0 {
-            info!("⚡ Ultra-fast published: {} messages", count);
+            perf_info!("⚡ Ultra-fast published: {} messages", count);
         }
         Ok(())
     }
@@ -66,7 +154,7 @@ impl UltraProductionBroker {
     }
     
     pub async fn shutdown(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        info!("🛑 Ultra-Fast Production Broker shutdown");
+        broker_info!("🛑 Ultra-Fast Production Broker shutdown");
         Ok(())
     }
 }
@@ -83,22 +171,19 @@ impl UltraMessage {
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 32)]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Initialize comprehensive logging
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .with_target(false)
-        .with_thread_ids(true)
-        .with_line_number(true)
-        .init();
+    // Initialize ultra-logger (lazy initialization via static)
+    let _ = &*BROKER_LOGGER; // Force initialization
+    let _ = &*PERF_LOGGER;
 
     println!("🚀 ULTRA-HIGH PERFORMANCE MESSAGE BROKER ENGINE v2.0 🚀");
     println!("═══════════════════════════════════════════════════════════");
     println!("🎯 Target: Sub-microsecond UDP + 99.9% latency reduction");
     println!("🔧 Platform: {} on {}", std::env::consts::ARCH, std::env::consts::OS);
     println!("⚡ New: Production-ready ultra-fast broker with UDP optimization");
+    println!("📊 Logging: Ultra-Logger with Elasticsearch transport");
     println!("═══════════════════════════════════════════════════════════");
 
-    info!("Starting Ultra-High Performance Message Broker v2.0...");
+    broker_info!("Starting Ultra-High Performance Message Broker v2.0...");
 
     // === ULTRA-FAST PRODUCTION BROKER INTEGRATION ===
     
@@ -208,7 +293,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Spawn legacy broker in background
     let legacy_task = tokio::spawn(async move {
         if let Err(e) = legacy_broker_clone.start().await {
-            error!("Legacy broker error: {}", e);
+            broker_error!("Legacy broker error: {}", e);
         }
     });
     
@@ -252,23 +337,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         println!("   Status: PRODUCTION-READY FOR HFT TRADING");
     }
     
-    println!("\n🏁 ULTRA-FAST MESSAGE BROKER DEMONSTRATION COMPLETE");
+    println!("\n🏁 ULTRA-FAST MESSAGE BROKER INITIALIZATION COMPLETE");
     println!("🎉 Both brokers running - ready for algorithmic trading! 🎉");
     
-    // Keep running for demonstration
-    println!("\n⏳ Running both brokers for 10 seconds...");
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    // Run as a production service - wait for shutdown signal
+    println!("\n🚀 Message Broker Engine running in production mode...");
+    println!("📡 Press Ctrl+C to shutdown gracefully");
+    
+    // Wait for shutdown signal (SIGTERM/SIGINT)
+    let ctrl_c = tokio::signal::ctrl_c();
+    
+    // Keep running until shutdown signal
+    tokio::select! {
+        _ = ctrl_c => {
+            println!("\n🛑 Received shutdown signal...");
+        }
+        result = legacy_task => {
+            match result {
+                Ok(_) => println!("Legacy broker task completed"),
+                Err(e) => {
+                    broker_error!("Legacy broker task error: {}", e);
+                }
+            }
+        }
+    }
     
     // Clean shutdown
-    println!("\n🛑 Shutting down brokers...");
+    println!("🛑 Shutting down brokers...");
     let _ = ultra_broker.shutdown().await;
     legacy_broker.stop();
-    
-    // Wait for clean shutdown
-    let _ = tokio::time::timeout(Duration::from_secs(2), legacy_task).await;
 
     println!("✅ All brokers stopped gracefully");
-    println!("🎉 ULTRA-HIGH PERFORMANCE ACHIEVED - PRODUCTION READY! 🎉");
+    println!("🎉 Message Broker Engine shutdown complete 🎉");
     
     Ok(())
 }

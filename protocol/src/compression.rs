@@ -3,7 +3,29 @@ use std::io::{Read, Write};
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use lz4::{Decoder, EncoderBuilder};
 use std::time::Instant;
-use tracing::{debug, warn};
+
+// Use the logger from parent module
+use crate::PROTOCOL_LOGGER;
+
+// Synchronous logging macros for compression
+macro_rules! comp_warn {
+    ($msg:expr) => {
+        PROTOCOL_LOGGER.warn_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        PROTOCOL_LOGGER.warn_sync(format!($fmt, $($arg)*));
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! comp_debug {
+    ($msg:expr) => {
+        PROTOCOL_LOGGER.debug_sync($msg.to_string());
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        PROTOCOL_LOGGER.debug_sync(format!($fmt, $($arg)*));
+    };
+}
 
 /// Compression algorithms supported by the message broker
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,7 +134,7 @@ impl MessageCompressor {
         
         // Skip compression for small messages
         if data.len() < self.config.min_message_size_for_compression {
-            debug!("Skipping compression for small message ({} bytes)", data.len());
+            comp_debug!("Skipping compression for small message ({} bytes)", data.len());
             let mut result = Vec::with_capacity(data.len() + 1);
             result.push(0u8); // 0 = uncompressed
             result.extend_from_slice(data);
@@ -142,7 +164,7 @@ impl MessageCompressor {
                 if self.config.adaptive_compression && 
                    compression_ratio > (1.0 - self.config.compression_ratio_threshold) {
                     // Compression not effective enough, return original with header
-                    debug!("Compression not effective (ratio: {:.2}), using original", compression_ratio);
+                    comp_debug!("Compression not effective (ratio: {:.2}), using original", compression_ratio);
                     let mut result = Vec::with_capacity(data.len() + 1);
                     result.push(0u8); // 0 = uncompressed
                     result.extend_from_slice(data);
@@ -151,7 +173,7 @@ impl MessageCompressor {
                     self.compression_stats.compressed_messages += 1;
                     self.compression_stats.total_compressed_bytes += compressed_data.len() as u64;
                     
-                    debug!("Compressed {} bytes to {} bytes (ratio: {:.2}) in {}ns", 
+                    comp_debug!("Compressed {} bytes to {} bytes (ratio: {:.2}) in {}ns", 
                           data.len(), 
                           compressed_data.len(), 
                           compression_ratio,
@@ -164,7 +186,7 @@ impl MessageCompressor {
                 }
             }
             Err(e) => {
-                warn!("Compression failed: {}, using original data", e);
+                comp_warn!("Compression failed: {}, using original data", e);
                 let mut result = Vec::with_capacity(data.len() + 1);
                 result.push(0u8); // 0 = uncompressed
                 result.extend_from_slice(data);
