@@ -7,25 +7,19 @@ use wildmatch::WildMatch;
 use lru::LruCache;
 use std::num::NonZeroUsize;
 
-// Use the logger from parent module
-use crate::TOPIC_LOGGER;
-
-// Synchronous logging macros for routing
+// Simple logging macros that work without tokio runtime (safe for tests)
+#[allow(unused_macros)]
 macro_rules! route_info {
-    ($msg:expr) => {
-        TOPIC_LOGGER.info_sync($msg.to_string());
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        TOPIC_LOGGER.info_sync(format!($fmt, $($arg)*));
+    ($fmt:expr $(, $arg:expr)*) => {
+        eprintln!("[INFO] [routing] {}", format!($fmt $(, $arg)*));
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! route_debug {
-    ($msg:expr) => {
-        TOPIC_LOGGER.debug_sync($msg.to_string());
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        TOPIC_LOGGER.debug_sync(format!($fmt, $($arg)*));
+    ($fmt:expr $(, $arg:expr)*) => {
+        #[cfg(debug_assertions)]
+        eprintln!("[DEBUG] [routing] {}", format!($fmt $(, $arg)*));
     };
 }
 

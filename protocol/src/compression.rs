@@ -3,27 +3,30 @@ use std::io::{Read, Write};
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use lz4::{Decoder, EncoderBuilder};
 use std::time::Instant;
+use std::sync::OnceLock;
+use ultra_logger::UltraLogger;
 
-// Use the logger from parent module
-use crate::PROTOCOL_LOGGER;
+// Protocol logger - initialized lazily, works without async runtime
+static PROTOCOL_LOGGER: OnceLock<UltraLogger> = OnceLock::new();
 
-// Synchronous logging macros for compression
+fn get_logger() -> &'static UltraLogger {
+    PROTOCOL_LOGGER.get_or_init(|| {
+        UltraLogger::new("protocol".to_string())
+    })
+}
+
+// Logging macros that use ultra-logger
 macro_rules! comp_warn {
-    ($msg:expr) => {
-        PROTOCOL_LOGGER.warn_sync($msg.to_string());
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        PROTOCOL_LOGGER.warn_sync(format!($fmt, $($arg)*));
+    ($fmt:expr $(, $arg:expr)*) => {
+        get_logger().warn_sync(format!($fmt $(, $arg)*));
     };
 }
 
 #[allow(unused_macros)]
 macro_rules! comp_debug {
-    ($msg:expr) => {
-        PROTOCOL_LOGGER.debug_sync($msg.to_string());
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        PROTOCOL_LOGGER.debug_sync(format!($fmt, $($arg)*));
+    ($fmt:expr $(, $arg:expr)*) => {
+        #[cfg(debug_assertions)]
+        get_logger().debug_sync(format!($fmt $(, $arg)*));
     };
 }
 

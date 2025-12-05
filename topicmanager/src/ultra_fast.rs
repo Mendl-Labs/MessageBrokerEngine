@@ -13,34 +13,28 @@ use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex as TokioMutex;
 
-// Use the logger from parent module
-use crate::TOPIC_LOGGER;
+use protocol::broker::messages::publish_request::Payload;
 
-// Synchronous logging macros for ultra_fast
+// Simple logging macros that work without tokio runtime (safe for tests)
+#[allow(unused_macros)]
 macro_rules! uf_info {
-    ($msg:expr) => {
-        TOPIC_LOGGER.info_sync($msg.to_string());
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        TOPIC_LOGGER.info_sync(format!($fmt, $($arg)*));
+    ($fmt:expr $(, $arg:expr)*) => {
+        eprintln!("[INFO] [ultra_fast] {}", format!($fmt $(, $arg)*));
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! uf_warn {
-    ($msg:expr) => {
-        TOPIC_LOGGER.warn_sync($msg.to_string());
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        TOPIC_LOGGER.warn_sync(format!($fmt, $($arg)*));
+    ($fmt:expr $(, $arg:expr)*) => {
+        eprintln!("[WARN] [ultra_fast] {}", format!($fmt $(, $arg)*));
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! uf_debug {
-    ($msg:expr) => {
-        TOPIC_LOGGER.debug_sync($msg.to_string());
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        TOPIC_LOGGER.debug_sync(format!($fmt, $($arg)*));
+    ($fmt:expr $(, $arg:expr)*) => {
+        #[cfg(debug_assertions)]
+        eprintln!("[DEBUG] [ultra_fast] {}", format!($fmt $(, $arg)*));
     };
 }
 

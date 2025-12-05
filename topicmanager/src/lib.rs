@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, AtomicBool, Ordering};
+use std::sync::OnceLock;
 
 use async_trait::async_trait;
 use crossbeam_queue::SegQueue;
@@ -9,78 +10,35 @@ use crossbeam_utils::CachePadded;
 use parking_lot::RwLock;
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
-
-// Ultra-Logger for high-performance logging
-use ultra_logger::{UltraLogger, LoggerConfig, TransportConfig, ConnectionConfig};
-use once_cell::sync::Lazy;
+use ultra_logger::UltraLogger;
 
 use protocol::broker::messages::publish_request::Payload;
 
 pub mod routing;
 pub use routing::{IntelligentMessageRouter, TopicSubscriptionManager, RoutingRule, RoutingPattern, MessageFilter};
 
-// Create Elasticsearch configuration for topicmanager
-fn create_elasticsearch_config(component: &str) -> LoggerConfig {
-    let use_elasticsearch = std::env::var("USE_ELASTICSEARCH_LOGGING")
-        .map(|v| v.to_lowercase() == "true")
-        .unwrap_or(true);
+// Topic manager logger - initialized lazily, works without async runtime
+static TOPIC_LOGGER: OnceLock<UltraLogger> = OnceLock::new();
 
-    if use_elasticsearch {
-        let endpoint = std::env::var("ELASTICSEARCH_ENDPOINT")
-            .or_else(|_| std::env::var("ELASTIC_CLOUD_ENDPOINT"))
-            .unwrap_or_else(|_| "https://trading-bot-observability-6b76eb.es.us-central1.gcp.cloud.es.io".to_string());
-        let username = std::env::var("ELASTICSEARCH_USERNAME")
-            .or_else(|_| std::env::var("ELASTIC_CLOUD_USERNAME"))
-            .unwrap_or_else(|_| "elastic".to_string());
-        let password = std::env::var("ELASTICSEARCH_PASSWORD")
-            .or_else(|_| std::env::var("ELASTIC_CLOUD_PASSWORD"))
-            .unwrap_or_default();
-
-        let mut options = std::collections::HashMap::new();
-        options.insert("index".to_string(), format!("messagebroker-{}-logs", component));
-
-        LoggerConfig {
-            level: std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()),
-            transport: TransportConfig {
-                transport_type: "elasticsearch".to_string(),
-                connection: ConnectionConfig {
-                    host: endpoint,
-                    port: 443,
-                    username: Some(username),
-                    password: Some(password),
-                    options,
-                },
-            },
-        }
-    } else {
-        LoggerConfig::default()
-    }
+fn get_logger() -> &'static UltraLogger {
+    TOPIC_LOGGER.get_or_init(|| {
+        UltraLogger::new("topicmanager".to_string())
+    })
 }
 
-/// Topic manager logger instance
-pub static TOPIC_LOGGER: Lazy<Arc<UltraLogger>> = Lazy::new(|| {
-    Arc::new(UltraLogger::with_config(
-        "MessageBrokerEngine-topicmanager".to_string(),
-        create_elasticsearch_config("topicmanager")
-    ))
-});
-
-// Synchronous logging macros for topicmanager
+// Logging macros that use ultra-logger
+#[allow(unused_macros)]
 macro_rules! topic_info {
-    ($msg:expr) => {
-        TOPIC_LOGGER.info_sync($msg.to_string());
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        TOPIC_LOGGER.info_sync(format!($fmt, $($arg)*));
+    ($fmt:expr $(, $arg:expr)*) => {
+        get_logger().info_sync(format!($fmt $(, $arg)*));
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! topic_debug {
-    ($msg:expr) => {
-        TOPIC_LOGGER.debug_sync($msg.to_string());
-    };
-    ($fmt:expr, $($arg:tt)*) => {
-        TOPIC_LOGGER.debug_sync(format!($fmt, $($arg)*));
+    ($fmt:expr $(, $arg:expr)*) => {
+        #[cfg(debug_assertions)]
+        get_logger().debug_sync(format!($fmt $(, $arg)*));
     };
 }
 

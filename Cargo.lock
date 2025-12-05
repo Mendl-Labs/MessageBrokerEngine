@@ -1716,7 +1716,6 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "lz4",
- "once_cell",
  "prost",
  "prost-build",
  "prost-types",
@@ -2497,7 +2496,6 @@ dependencies = [
  "lru",
  "memmap2",
  "mockall",
- "once_cell",
  "parking_lot",
  "prost",
  "prost-build",
