@@ -183,7 +183,8 @@ jobs:
           $shortSha = "${{ github.sha }}".Substring(0, 7)
           Write-Host "[INFO] Building with immutable tag: $shortSha"
           
-          docker build --platform linux/amd64 --tag ${{ env.IMAGE_NAME }}:$shortSha --file MessageBrokerEngine/Dockerfile --build-arg LOGGING_ENGINE_SHA=$loggingSha --progress=plain .
+          # Build without --platform flag (Docker Desktop handles Linux container builds)
+          docker build --tag ${{ env.IMAGE_NAME }}:$shortSha --file MessageBrokerEngine/Dockerfile --build-arg LOGGING_ENGINE_SHA=$loggingSha --progress=plain .
           
           if ($LASTEXITCODE -ne 0) {
             throw "Docker build failed"
