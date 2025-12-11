@@ -248,3 +248,216 @@ pub mod market_message {
         TradesPayload(Trades),
     }
 }
+
+// ============================================================================
+// DISTRIBUTED BACKTESTING MESSAGES
+// ============================================================================
+
+/// A chunk of work for distributed backtesting
+/// Workers subscribe to these and process them independently
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct BacktestChunk {
+    /// Unique identifier for the parent job
+    #[prost(string, tag = "1")]
+    pub job_id: String,
+    /// Unique identifier for this chunk
+    #[prost(int32, tag = "2")]
+    pub chunk_id: i32,
+    /// Total number of chunks for this job
+    #[prost(int32, tag = "3")]
+    pub total_chunks: i32,
+    /// Start timestamp (ISO8601 format)
+    #[prost(string, tag = "4")]
+    pub start_time: String,
+    /// End timestamp (ISO8601 format)
+    #[prost(string, tag = "5")]
+    pub end_time: String,
+    /// Trading symbol (e.g., "BTCUSDT")
+    #[prost(string, tag = "6")]
+    pub symbol: String,
+    /// Exchange name
+    #[prost(string, tag = "7")]
+    pub exchange: String,
+    /// Serialized strategy configuration (JSON)
+    #[prost(bytes, tag = "8")]
+    pub strategy_config: Vec<u8>,
+    /// Initial capital for this chunk
+    #[prost(double, tag = "9")]
+    pub initial_capital: f64,
+    /// Starting position from previous chunk (for continuity)
+    #[prost(double, tag = "10")]
+    pub starting_position: f64,
+    /// Starting cash from previous chunk
+    #[prost(double, tag = "11")]
+    pub starting_cash: f64,
+    /// Whether this is a Monte Carlo simulation run
+    #[prost(bool, tag = "12")]
+    pub is_monte_carlo: bool,
+    /// Monte Carlo run index (0 for non-MC runs)
+    #[prost(int32, tag = "13")]
+    pub monte_carlo_run: i32,
+    /// Chunk processing priority (higher = process first)
+    #[prost(int32, tag = "14")]
+    pub priority: i32,
+}
+
+/// Result from processing a single chunk
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct BacktestChunkResult {
+    /// Parent job ID
+    #[prost(string, tag = "1")]
+    pub job_id: String,
+    /// Chunk ID that was processed
+    #[prost(int32, tag = "2")]
+    pub chunk_id: i32,
+    /// Worker ID that processed this chunk
+    #[prost(string, tag = "3")]
+    pub worker_id: String,
+    /// Whether processing succeeded
+    #[prost(bool, tag = "4")]
+    pub success: bool,
+    /// Error message if failed
+    #[prost(string, tag = "5")]
+    pub error_message: String,
+    /// Net PnL for this chunk
+    #[prost(double, tag = "6")]
+    pub net_pnl: f64,
+    /// Gross profit for this chunk
+    #[prost(double, tag = "7")]
+    pub gross_profit: f64,
+    /// Gross loss for this chunk
+    #[prost(double, tag = "8")]
+    pub gross_loss: f64,
+    /// Number of trades executed
+    #[prost(int32, tag = "9")]
+    pub num_trades: i32,
+    /// Number of winning trades
+    #[prost(int32, tag = "10")]
+    pub winning_trades: i32,
+    /// Maximum drawdown observed
+    #[prost(double, tag = "11")]
+    pub max_drawdown: f64,
+    /// Total transaction costs
+    #[prost(double, tag = "12")]
+    pub transaction_costs: f64,
+    /// Ending position (for next chunk continuity)
+    #[prost(double, tag = "13")]
+    pub ending_position: f64,
+    /// Ending cash (for next chunk continuity)
+    #[prost(double, tag = "14")]
+    pub ending_cash: f64,
+    /// Daily returns (serialized as JSON for Sharpe calculation)
+    #[prost(bytes, tag = "15")]
+    pub daily_returns: Vec<u8>,
+    /// Number of events processed
+    #[prost(int64, tag = "16")]
+    pub events_processed: i64,
+    /// Processing duration in milliseconds
+    #[prost(int64, tag = "17")]
+    pub processing_duration_ms: i64,
+    /// Peak memory usage in bytes
+    #[prost(int64, tag = "18")]
+    pub peak_memory_bytes: i64,
+    /// Monte Carlo run index (for MC aggregation)
+    #[prost(int32, tag = "19")]
+    pub monte_carlo_run: i32,
+}
+
+/// Progress update for a distributed job
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct BacktestProgress {
+    /// Job ID
+    #[prost(string, tag = "1")]
+    pub job_id: String,
+    /// Number of chunks completed
+    #[prost(int32, tag = "2")]
+    pub chunks_completed: i32,
+    /// Total chunks in job
+    #[prost(int32, tag = "3")]
+    pub total_chunks: i32,
+    /// Percentage complete (0.0 - 100.0)
+    #[prost(float, tag = "4")]
+    pub percent_complete: f32,
+    /// Current phase (chunking, processing, aggregating)
+    #[prost(string, tag = "5")]
+    pub phase: String,
+    /// Estimated time remaining in seconds
+    #[prost(int64, tag = "6")]
+    pub estimated_remaining_secs: i64,
+    /// Running PnL aggregate (from completed chunks)
+    #[prost(double, tag = "7")]
+    pub running_pnl: f64,
+    /// Running trade count
+    #[prost(int32, tag = "8")]
+    pub running_trades: i32,
+}
+
+/// Request to cancel a distributed job
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct BacktestCancelRequest {
+    /// Job ID to cancel
+    #[prost(string, tag = "1")]
+    pub job_id: String,
+    /// Reason for cancellation
+    #[prost(string, tag = "2")]
+    pub reason: String,
+}
+
+/// Aggregated result from all chunks
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct BacktestAggregatedResult {
+    /// Job ID
+    #[prost(string, tag = "1")]
+    pub job_id: String,
+    /// Total net PnL
+    #[prost(double, tag = "2")]
+    pub total_net_pnl: f64,
+    /// Total gross profit
+    #[prost(double, tag = "3")]
+    pub total_gross_profit: f64,
+    /// Total gross loss
+    #[prost(double, tag = "4")]
+    pub total_gross_loss: f64,
+    /// Total number of trades
+    #[prost(int32, tag = "5")]
+    pub total_trades: i32,
+    /// Total winning trades
+    #[prost(int32, tag = "6")]
+    pub total_winning_trades: i32,
+    /// Win rate (0.0 - 1.0)
+    #[prost(float, tag = "7")]
+    pub win_rate: f32,
+    /// Profit factor
+    #[prost(float, tag = "8")]
+    pub profit_factor: f32,
+    /// Maximum drawdown across all chunks
+    #[prost(double, tag = "9")]
+    pub max_drawdown: f64,
+    /// Sharpe ratio (calculated from combined daily returns)
+    #[prost(float, tag = "10")]
+    pub sharpe_ratio: f32,
+    /// Sortino ratio
+    #[prost(float, tag = "11")]
+    pub sortino_ratio: f32,
+    /// Calmar ratio
+    #[prost(float, tag = "12")]
+    pub calmar_ratio: f32,
+    /// Total transaction costs
+    #[prost(double, tag = "13")]
+    pub total_transaction_costs: f64,
+    /// Total events processed
+    #[prost(int64, tag = "14")]
+    pub total_events: i64,
+    /// Total processing time in milliseconds
+    #[prost(int64, tag = "15")]
+    pub total_processing_time_ms: i64,
+    /// Number of workers used
+    #[prost(int32, tag = "16")]
+    pub num_workers: i32,
+    /// Number of chunks processed
+    #[prost(int32, tag = "17")]
+    pub chunks_processed: i32,
+    /// Number of chunks that failed
+    #[prost(int32, tag = "18")]
+    pub chunks_failed: i32,
+}
