@@ -461,3 +461,127 @@ pub struct BacktestAggregatedResult {
     #[prost(int32, tag = "18")]
     pub chunks_failed: i32,
 }
+
+// ============================================================================
+// DISTRIBUTED GENETIC ALGORITHM MESSAGES
+// ============================================================================
+
+/// Request to evaluate a chromosome on a remote worker
+/// Workers with cached data subscribe to these and return fitness results
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct ChromosomeEvalRequest {
+    /// Parent job ID
+    #[prost(string, tag = "1")]
+    pub job_id: String,
+    /// Generation number
+    #[prost(int32, tag = "2")]
+    pub generation: i32,
+    /// Chromosome index within generation
+    #[prost(int32, tag = "3")]
+    pub chromosome_id: i32,
+    /// Total chromosomes in this generation
+    #[prost(int32, tag = "4")]
+    pub total_chromosomes: i32,
+    /// Serialized chromosome parameters (JSON)
+    #[prost(bytes, tag = "5")]
+    pub chromosome_params: Vec<u8>,
+    /// Trading symbol for data lookup
+    #[prost(string, tag = "6")]
+    pub symbol: String,
+    /// Exchange for data lookup
+    #[prost(string, tag = "7")]
+    pub exchange: String,
+    /// Initial capital
+    #[prost(double, tag = "8")]
+    pub initial_capital: f64,
+    /// Data cache key (workers with this data cached process faster)
+    #[prost(string, tag = "9")]
+    pub data_cache_key: String,
+}
+
+/// Result from chromosome evaluation
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct ChromosomeEvalResult {
+    /// Parent job ID
+    #[prost(string, tag = "1")]
+    pub job_id: String,
+    /// Generation number
+    #[prost(int32, tag = "2")]
+    pub generation: i32,
+    /// Chromosome index
+    #[prost(int32, tag = "3")]
+    pub chromosome_id: i32,
+    /// Worker ID that processed this
+    #[prost(string, tag = "4")]
+    pub worker_id: String,
+    /// Whether evaluation succeeded
+    #[prost(bool, tag = "5")]
+    pub success: bool,
+    /// Error message if failed
+    #[prost(string, tag = "6")]
+    pub error_message: String,
+    /// Fitness score
+    #[prost(double, tag = "7")]
+    pub fitness: f64,
+    /// Net PnL
+    #[prost(double, tag = "8")]
+    pub net_pnl: f64,
+    /// Sharpe ratio
+    #[prost(double, tag = "9")]
+    pub sharpe_ratio: f64,
+    /// Number of trades
+    #[prost(int32, tag = "10")]
+    pub num_trades: i32,
+    /// Max drawdown
+    #[prost(double, tag = "11")]
+    pub max_drawdown: f64,
+    /// Equity curve (serialized as JSON)
+    #[prost(bytes, tag = "12")]
+    pub equity_curve: Vec<u8>,
+    /// Processing duration in milliseconds
+    #[prost(int64, tag = "13")]
+    pub processing_duration_ms: i64,
+}
+
+/// Request to broadcast market data to all workers for caching
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct DataBroadcastRequest {
+    /// Unique cache key for this dataset
+    #[prost(string, tag = "1")]
+    pub cache_key: String,
+    /// Trading symbol
+    #[prost(string, tag = "2")]
+    pub symbol: String,
+    /// Exchange
+    #[prost(string, tag = "3")]
+    pub exchange: String,
+    /// Number of data points
+    #[prost(int64, tag = "4")]
+    pub data_point_count: i64,
+    /// Compressed market data (using LZ4)
+    #[prost(bytes, tag = "5")]
+    pub compressed_data: Vec<u8>,
+    /// Compression algorithm used
+    #[prost(string, tag = "6")]
+    pub compression: String,
+    /// TTL in seconds (how long workers should cache this)
+    #[prost(int64, tag = "7")]
+    pub ttl_seconds: i64,
+}
+
+/// Acknowledgment that worker has cached the data
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct DataCacheAck {
+    /// Cache key that was stored
+    #[prost(string, tag = "1")]
+    pub cache_key: String,
+    /// Worker ID that cached it
+    #[prost(string, tag = "2")]
+    pub worker_id: String,
+    /// Whether caching succeeded
+    #[prost(bool, tag = "3")]
+    pub success: bool,
+    /// Number of concurrent evaluations this worker can handle
+    #[prost(int32, tag = "4")]
+    pub capacity: i32,
+}
