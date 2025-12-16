@@ -6,7 +6,11 @@ use std::sync::atomic::{AtomicU64, AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 use std::collections::HashMap;
 
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
+
+// Topic manager for routing
+use topicmanager::{TopicSubscriptionManager, routing::TopicSubscription};
 
 // Ultra-Logger for high-performance logging
 use ultra_logger::{UltraLogger, LoggerConfig, TransportConfig, ConnectionConfig};
@@ -522,20 +526,22 @@ impl BrokerConfig {
 #[derive(Debug)]
 pub struct Connection {
     id: u64,
-    #[allow(dead_code)]
-    stream: Arc<tokio::sync::Mutex<TcpStream>>,
+    /// Writer half of the TCP stream (for sending messages to this connection)
+    writer: Arc<tokio::sync::Mutex<tokio::net::tcp::OwnedWriteHalf>>,
     is_active: Arc<AtomicBool>,
-    #[allow(dead_code)]
-    last_activity: u64,
+    last_activity: Arc<AtomicU64>,
+    /// Whether this is a subscriber connection
+    is_subscriber: Arc<AtomicBool>,
 }
 
 impl Connection {
-    pub fn new(id: u64, stream: TcpStream) -> Self {
+    pub fn new(id: u64, writer: tokio::net::tcp::OwnedWriteHalf) -> Self {
         Self {
             id,
-            stream: Arc::new(tokio::sync::Mutex::new(stream)),
+            writer: Arc::new(tokio::sync::Mutex::new(writer)),
             is_active: Arc::new(AtomicBool::new(true)),
-            last_activity: get_rdtsc(),
+            last_activity: Arc::new(AtomicU64::new(get_rdtsc())),
+            is_subscriber: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -550,6 +556,30 @@ impl Connection {
     pub fn close(&self) {
         self.is_active.store(false, Ordering::Relaxed);
     }
+    
+    pub fn mark_as_subscriber(&self) {
+        self.is_subscriber.store(true, Ordering::Relaxed);
+    }
+    
+    pub fn update_activity(&self) {
+        self.last_activity.store(get_rdtsc(), Ordering::Relaxed);
+    }
+    
+    /// Send a message to this connection
+    pub async fn send_message(&self, topic: &str, data: &[u8]) -> Result<(), std::io::Error> {
+        let mut writer = self.writer.lock().await;
+        
+        // Wire format: [topic_len: u32][topic: bytes][data_len: u32][data: bytes]
+        let topic_bytes = topic.as_bytes();
+        writer.write_u32_le(topic_bytes.len() as u32).await?;
+        writer.write_all(topic_bytes).await?;
+        writer.write_u32_le(data.len() as u32).await?;
+        writer.write_all(data).await?;
+        writer.flush().await?;
+        
+        self.update_activity();
+        Ok(())
+    }
 }
 
 // Ultra-high performance message broker host with enhancements
@@ -557,8 +587,11 @@ pub struct MessageBrokerHost {
     config: BrokerConfig,
     metrics: Arc<UltraFastMetrics>,
     is_running: Arc<AtomicBool>,
-    connections: Arc<parking_lot::RwLock<std::collections::HashMap<u64, Connection>>>,
+    connections: Arc<parking_lot::RwLock<std::collections::HashMap<u64, Arc<Connection>>>>,
     connection_counter: Arc<AtomicU64>,
+    
+    // Topic subscription management
+    subscription_manager: Arc<TopicSubscriptionManager>,
     
     // Enhanced features
     #[allow(dead_code)]
@@ -588,6 +621,7 @@ impl MessageBrokerHost {
             is_running: Arc::new(AtomicBool::new(false)),
             connections: Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
             connection_counter: Arc::new(AtomicU64::new(0)),
+            subscription_manager: Arc::new(TopicSubscriptionManager::new()),
             wal,
             flow_control,
         }
@@ -616,14 +650,36 @@ impl MessageBrokerHost {
                     match self.flow_control.acquire_permit().await {
                         Ok(_permit) => {
                             let conn_id = self.connection_counter.fetch_add(1, Ordering::Relaxed);
-                            let connection = Connection::new(conn_id, stream);
+                            
+                            // Split stream into reader and writer
+                            let (reader, writer) = stream.into_split();
+                            let connection = Arc::new(Connection::new(conn_id, writer));
                             
                             {
                                 let mut connections = self.connections.write();
-                                connections.insert(conn_id, connection);
+                                connections.insert(conn_id, Arc::clone(&connection));
                             }
                             
+                            self.metrics.record_connection();
                             host_info!("Connection {} accepted with flow control", conn_id);
+                            
+                            // Spawn task to handle incoming messages from this connection
+                            let connections = Arc::clone(&self.connections);
+                            let subscription_manager = Arc::clone(&self.subscription_manager);
+                            let metrics = Arc::clone(&self.metrics);
+                            let is_running = Arc::clone(&self.is_running);
+                            
+                            tokio::spawn(async move {
+                                Self::handle_connection(
+                                    conn_id,
+                                    reader,
+                                    connection,
+                                    connections,
+                                    subscription_manager,
+                                    metrics,
+                                    is_running,
+                                ).await;
+                            });
                         }
                         Err(e) => {
                             host_warn!("Connection rejected due to flow control: {}", e);
@@ -638,6 +694,141 @@ impl MessageBrokerHost {
             }
         }
 
+        Ok(())
+    }
+    
+    /// Handle incoming messages from a connection
+    async fn handle_connection(
+        conn_id: u64,
+        mut reader: tokio::net::tcp::OwnedReadHalf,
+        connection: Arc<Connection>,
+        connections: Arc<parking_lot::RwLock<std::collections::HashMap<u64, Arc<Connection>>>>,
+        subscription_manager: Arc<TopicSubscriptionManager>,
+        metrics: Arc<UltraFastMetrics>,
+        is_running: Arc<AtomicBool>,
+    ) {
+        let mut buf_reader = BufReader::new(&mut reader);
+        
+        while is_running.load(Ordering::Relaxed) && connection.is_active() {
+            // Read message type byte first
+            // 0x01 = PUBLISH, 0x02 = SUBSCRIBE
+            let msg_type = match buf_reader.read_u8().await {
+                Ok(t) => t,
+                Err(e) => {
+                    if e.kind() != std::io::ErrorKind::UnexpectedEof {
+                        host_debug!("Connection {} read error: {}", conn_id, e);
+                    }
+                    break;
+                }
+            };
+            
+            match msg_type {
+                0x01 => {
+                    // PUBLISH: Read topic and data, route to subscribers
+                    if let Err(e) = Self::handle_publish(&mut buf_reader, &connections, &subscription_manager, &metrics).await {
+                        host_debug!("Connection {} publish error: {}", conn_id, e);
+                        metrics.record_error();
+                        break;
+                    }
+                }
+                0x02 => {
+                    // SUBSCRIBE: Read topic pattern, register this connection
+                    if let Err(e) = Self::handle_subscribe(&mut buf_reader, conn_id, &connection, &subscription_manager).await {
+                        host_debug!("Connection {} subscribe error: {}", conn_id, e);
+                        metrics.record_error();
+                        break;
+                    }
+                }
+                _ => {
+                    host_debug!("Connection {} unknown message type: {}", conn_id, msg_type);
+                    metrics.record_error();
+                    break;
+                }
+            }
+            
+            connection.update_activity();
+        }
+        
+        // Cleanup connection
+        connection.close();
+        connections.write().remove(&conn_id);
+        host_debug!("Connection {} closed", conn_id);
+    }
+    
+    /// Handle a PUBLISH message: route to all subscribers
+    async fn handle_publish(
+        reader: &mut BufReader<&mut tokio::net::tcp::OwnedReadHalf>,
+        connections: &Arc<parking_lot::RwLock<std::collections::HashMap<u64, Arc<Connection>>>>,
+        subscription_manager: &Arc<TopicSubscriptionManager>,
+        metrics: &Arc<UltraFastMetrics>,
+    ) -> Result<(), std::io::Error> {
+        // Wire format: [topic_len: u32][topic: bytes][data_len: u32][data: bytes]
+        let topic_len = reader.read_u32_le().await? as usize;
+        if topic_len > 1024 {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Topic too long"));
+        }
+        
+        let mut topic_buf = vec![0u8; topic_len];
+        reader.read_exact(&mut topic_buf).await?;
+        let topic = String::from_utf8_lossy(&topic_buf).to_string();
+        
+        let data_len = reader.read_u32_le().await? as usize;
+        if data_len > 16 * 1024 * 1024 {  // 16MB max
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Data too large"));
+        }
+        
+        let mut data = vec![0u8; data_len];
+        reader.read_exact(&mut data).await?;
+        
+        // Get subscribers for this topic
+        let subscriber_ids = subscription_manager.get_subscribers(&topic);
+        
+        // Collect connections to send to (drop lock before async operations)
+        let subscriber_conns: Vec<Arc<Connection>> = {
+            let conns = connections.read();
+            subscriber_ids
+                .iter()
+                .filter_map(|id| conns.get(id).cloned())
+                .filter(|conn| conn.is_active())
+                .collect()
+        };
+        
+        // Route message to all subscribers
+        for conn in subscriber_conns {
+            // Send message to subscriber (ignore errors - subscriber may have disconnected)
+            let _ = conn.send_message(&topic, &data).await;
+        }
+        
+        metrics.record_message(0, data.len());  // 0 latency for now
+        Ok(())
+    }
+    
+    /// Handle a SUBSCRIBE message: register connection for topic
+    async fn handle_subscribe(
+        reader: &mut BufReader<&mut tokio::net::tcp::OwnedReadHalf>,
+        conn_id: u64,
+        connection: &Arc<Connection>,
+        subscription_manager: &Arc<TopicSubscriptionManager>,
+    ) -> Result<(), std::io::Error> {
+        // Wire format: [topic_len: u32][topic_pattern: bytes]
+        let topic_len = reader.read_u32_le().await? as usize;
+        if topic_len > 1024 {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "Topic too long"));
+        }
+        
+        let mut topic_buf = vec![0u8; topic_len];
+        reader.read_exact(&mut topic_buf).await?;
+        let topic_pattern = String::from_utf8_lossy(&topic_buf).to_string();
+        
+        // Mark connection as subscriber and register
+        connection.mark_as_subscriber();
+        subscription_manager.subscribe(conn_id, TopicSubscription {
+            topic_pattern: topic_pattern.clone(),
+            filters: vec![],
+            metadata: std::collections::HashMap::new(),
+        });
+        
+        host_info!("Connection {} subscribed to '{}'", conn_id, topic_pattern);
         Ok(())
     }
 
