@@ -22,5 +22,11 @@ spec:
       protocol: TCP
       name: metrics
     {{- end }}
+    {{- if .Values.service.tcpPort }}
+    - port: {{ .Values.service.tcpPort }}
+      targetPort: {{ .Values.service.tcpPort }}
+      protocol: TCP
+      name: tcp-broker
+    {{- end }}
   selector:
     {{- include "message-broker-engine.selectorLabels" . | nindent 4 }}

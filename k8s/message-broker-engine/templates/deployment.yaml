@@ -41,6 +41,11 @@ spec:
             - name: metrics
               containerPort: {{ .Values.service.metricsPort | default 9090 }}
               protocol: TCP
+            {{- if .Values.service.tcpPort }}
+            - name: tcp-broker
+              containerPort: {{ .Values.service.tcpPort }}
+              protocol: TCP
+            {{- end }}
           {{- if .Values.envFromConfigMap }}
           envFrom:
             - configMapRef:

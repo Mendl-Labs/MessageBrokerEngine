@@ -70,6 +70,7 @@ service:
   port: 8080
   targetPort: 8080
   metricsPort: 9090
+  tcpPort: 8081  # TCP wire protocol port for distributed backtest communication
   annotations: {}
   labels: {}
 
