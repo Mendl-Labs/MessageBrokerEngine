@@ -121,6 +121,20 @@ envFromConfigMap: true
 
 # Secrets configuration
 secrets:
+  # Use existing secret instead of creating one (for external secret management)
+  existingSecret: ""
+  
+  # Elasticsearch credentials for Kibana logging
+  elasticsearch:
+    # Set to true to enable Elasticsearch logging
+    enabled: true
+    # Elastic Cloud endpoint URL
+    endpoint: ""
+    # Elastic Cloud username
+    username: ""
+    # Elastic Cloud password
+    password: ""
+  
   # TLS certificates (if TLS enabled)
   tls_cert: ""
   tls_key: ""

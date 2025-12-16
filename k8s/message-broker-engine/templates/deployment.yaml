@@ -48,6 +48,7 @@ spec:
           {{- end }}
           env:
             # Elasticsearch/Logging Configuration
+            {{- if .Values.secrets.elasticsearch.enabled }}
             - name: USE_ELASTICSEARCH_LOGGING
               value: "true"
             - name: ELASTICSEARCH_ENDPOINT
@@ -65,6 +66,10 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "message-broker-engine.fullname" .)) }}
                   key: elasticsearch-password
+            {{- else }}
+            - name: USE_ELASTICSEARCH_LOGGING
+              value: "false"
+            {{- end }}
             {{- if .Values.config.security.enable_tls }}
             - name: TLS_CERT_PATH
               value: {{ .Values.config.security.cert_path }}

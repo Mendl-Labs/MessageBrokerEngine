@@ -26,18 +26,23 @@ pub use flow_control::{FlowControlManager, BackpressureConfig, FlowControlStrate
 fn create_elasticsearch_config(component: &str) -> LoggerConfig {
     let use_elasticsearch = std::env::var("USE_ELASTICSEARCH_LOGGING")
         .map(|v| v.to_lowercase() == "true")
-        .unwrap_or(true);
+        .unwrap_or(true); // Default to true for production
 
     if use_elasticsearch {
         let endpoint = std::env::var("ELASTICSEARCH_ENDPOINT")
             .or_else(|_| std::env::var("ELASTIC_CLOUD_ENDPOINT"))
-            .unwrap_or_else(|_| "https://trading-bot-observability-6b76eb.es.us-central1.gcp.cloud.es.io".to_string());
+            .unwrap_or_default();
         let username = std::env::var("ELASTICSEARCH_USERNAME")
             .or_else(|_| std::env::var("ELASTIC_CLOUD_USERNAME"))
             .unwrap_or_else(|_| "elastic".to_string());
         let password = std::env::var("ELASTICSEARCH_PASSWORD")
             .or_else(|_| std::env::var("ELASTIC_CLOUD_PASSWORD"))
             .unwrap_or_default();
+
+        // Only configure elasticsearch if endpoint is set
+        if endpoint.is_empty() {
+            return LoggerConfig::default();
+        }
 
         let mut options = HashMap::new();
         options.insert("index".to_string(), format!("messagebroker-{}-logs", component));
