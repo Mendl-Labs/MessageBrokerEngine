@@ -720,12 +720,19 @@ impl MessageBrokerHost {
     ) {
         let mut buf_reader = BufReader::new(&mut reader);
         
+        println!("🔍 [BROKER] Connection {} handler started, waiting for messages...", conn_id);
+        
         while is_running.load(Ordering::Relaxed) && connection.is_active() {
             // Read message type byte first
             // 0x01 = PUBLISH, 0x02 = SUBSCRIBE
             let msg_type = match buf_reader.read_u8().await {
-                Ok(t) => t,
+                Ok(t) => {
+                    println!("📩 [BROKER] Connection {} received msg_type: 0x{:02X}", conn_id, t);
+                    t
+                },
                 Err(e) => {
+                    println!("⚠️ [BROKER] Connection {} read error: {} (kind: {:?}, is_subscriber: {})", 
+                        conn_id, e, e.kind(), connection.is_subscriber());
                     if e.kind() == std::io::ErrorKind::UnexpectedEof {
                         // EOF - check if this is a subscriber connection
                         // Subscribers may not send any more data after SUBSCRIBE messages
@@ -738,6 +745,8 @@ impl MessageBrokerHost {
                                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                             }
                             break;
+                        } else {
+                            println!("❌ [BROKER] Connection {} got EOF but is NOT a subscriber, closing", conn_id);
                         }
                     }
                     host_debug!("Connection {} read error: {}", conn_id, e);
@@ -749,6 +758,7 @@ impl MessageBrokerHost {
                 0x01 => {
                     // PUBLISH: Read topic and data, route to subscribers
                     if let Err(e) = Self::handle_publish(&mut buf_reader, &connections, &subscription_manager, &metrics).await {
+                        println!("❌ [BROKER] Connection {} publish error: {}", conn_id, e);
                         host_debug!("Connection {} publish error: {}", conn_id, e);
                         metrics.record_error();
                         break;
@@ -756,13 +766,17 @@ impl MessageBrokerHost {
                 }
                 0x02 => {
                     // SUBSCRIBE: Read topic pattern, register this connection
+                    println!("📋 [BROKER] Connection {} processing SUBSCRIBE...", conn_id);
                     if let Err(e) = Self::handle_subscribe(&mut buf_reader, conn_id, &connection, &subscription_manager).await {
+                        println!("❌ [BROKER] Connection {} subscribe error: {}", conn_id, e);
                         host_debug!("Connection {} subscribe error: {}", conn_id, e);
                         metrics.record_error();
                         break;
                     }
+                    println!("✅ [BROKER] Connection {} SUBSCRIBE processed, is_subscriber={}", conn_id, connection.is_subscriber());
                 }
                 _ => {
+                    println!("❓ [BROKER] Connection {} unknown msg_type: 0x{:02X}", conn_id, msg_type);
                     host_debug!("Connection {} unknown message type: {}", conn_id, msg_type);
                     metrics.record_error();
                     break;
