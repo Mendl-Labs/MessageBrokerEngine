@@ -585,3 +585,43 @@ pub struct DataCacheAck {
     #[prost(int32, tag = "4")]
     pub capacity: i32,
 }
+
+/// Request for workers to load data from database (no data payload over broker)
+/// 
+/// This is the preferred approach for large datasets. Instead of broadcasting
+/// the actual data over the message broker (which can be 500MB+), we send
+/// query parameters and workers load data directly from the database.
+/// 
+/// Benefits:
+/// - No serialization overhead (saves 10+ seconds)
+/// - No compression overhead (saves 3+ seconds)  
+/// - No 16MB message size limit issues
+/// - Workers can load in parallel from database
+/// - Memory efficient (no intermediate copies)
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct DataLoadRequest {
+    /// Unique cache key for this dataset
+    #[prost(string, tag = "1")]
+    pub cache_key: String,
+    /// Trading symbol(s) to load
+    #[prost(string, repeated, tag = "2")]
+    pub symbols: Vec<String>,
+    /// Exchange name
+    #[prost(string, tag = "3")]
+    pub exchange: String,
+    /// Start timestamp (ISO 8601 or Unix epoch seconds)
+    #[prost(string, tag = "4")]
+    pub start_time: String,
+    /// End timestamp (ISO 8601 or Unix epoch seconds)
+    #[prost(string, tag = "5")]
+    pub end_time: String,
+    /// TTL in seconds (how long workers should cache this)
+    #[prost(int64, tag = "6")]
+    pub ttl_seconds: i64,
+    /// Initial capital for position sizing
+    #[prost(double, tag = "7")]
+    pub initial_capital: f64,
+    /// Job ID for correlation
+    #[prost(string, tag = "8")]
+    pub job_id: String,
+}
