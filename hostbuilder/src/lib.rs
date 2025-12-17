@@ -649,6 +649,7 @@ impl MessageBrokerHost {
         while self.is_running.load(Ordering::Relaxed) {
             match listener.accept().await {
                 Ok((stream, addr)) => {
+                    println!("🔗 [BROKER] New TCP connection from: {}", addr);
                     host_debug!("New connection from: {}", addr);
                     
                     // Check flow control
@@ -666,6 +667,7 @@ impl MessageBrokerHost {
                             }
                             
                             self.metrics.record_connection();
+                            println!("✅ [BROKER] Connection {} accepted from {}", conn_id, addr);
                             host_info!("Connection {} accepted with flow control", conn_id);
                             
                             // Spawn task to handle incoming messages from this connection
@@ -788,6 +790,8 @@ impl MessageBrokerHost {
         // Get subscribers for this topic
         let subscriber_ids = subscription_manager.get_subscribers(&topic);
         
+        println!("📬 [BROKER] PUBLISH on '{}' ({} bytes) -> {} subscriber(s)", topic, data.len(), subscriber_ids.len());
+        
         // Collect connections to send to (drop lock before async operations)
         let subscriber_conns: Vec<Arc<Connection>> = {
             let conns = connections.read();
@@ -833,6 +837,7 @@ impl MessageBrokerHost {
             metadata: std::collections::HashMap::new(),
         });
         
+        println!("🔔 [BROKER] Connection {} subscribed to '{}'", conn_id, topic_pattern);
         host_info!("Connection {} subscribed to '{}'", conn_id, topic_pattern);
         Ok(())
     }
