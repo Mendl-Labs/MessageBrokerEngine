@@ -48,7 +48,9 @@ securityContext:
       - NET_BIND_SERVICE
 
 # Deployment configuration
-replicaCount: 3
+# TEMPORARILY SET TO 1: Broker subscriptions are not shared across replicas
+# TODO: Implement Redis/shared state for multi-replica support
+replicaCount: 1
 strategy:
   type: RollingUpdate
   rollingUpdate:
@@ -200,9 +202,11 @@ affinity:
           topologyKey: kubernetes.io/hostname
 
 # Horizontal Pod Autoscaler
+# TEMPORARILY DISABLED: Broker subscriptions are not shared across replicas
+# TODO: Implement Redis/shared state for multi-replica support
 autoscaling:
-  enabled: true
-  minReplicas: 2
+  enabled: false
+  minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
