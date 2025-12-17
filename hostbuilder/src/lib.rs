@@ -566,6 +566,10 @@ impl Connection {
         self.is_subscriber.store(true, Ordering::Relaxed);
     }
     
+    pub fn is_subscriber(&self) -> bool {
+        self.is_subscriber.load(Ordering::Relaxed)
+    }
+    
     pub fn update_activity(&self) {
         self.last_activity.store(get_rdtsc(), Ordering::Relaxed);
     }
