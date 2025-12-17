@@ -722,9 +722,21 @@ impl MessageBrokerHost {
             let msg_type = match buf_reader.read_u8().await {
                 Ok(t) => t,
                 Err(e) => {
-                    if e.kind() != std::io::ErrorKind::UnexpectedEof {
-                        host_debug!("Connection {} read error: {}", conn_id, e);
+                    if e.kind() == std::io::ErrorKind::UnexpectedEof {
+                        // EOF - check if this is a subscriber connection
+                        // Subscribers may not send any more data after SUBSCRIBE messages
+                        if connection.is_subscriber() {
+                            // Keep subscriber connection alive - just exit this read loop
+                            // The connection's writer is still valid for sending messages
+                            println!("📭 [BROKER] Connection {} (subscriber) read EOF - keeping connection alive for outbound messages", conn_id);
+                            // Wait until shutdown or connection is closed
+                            while is_running.load(Ordering::Relaxed) && connection.is_active() {
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                            }
+                            break;
+                        }
                     }
+                    host_debug!("Connection {} read error: {}", conn_id, e);
                     break;
                 }
             };
@@ -759,6 +771,7 @@ impl MessageBrokerHost {
         // Cleanup connection
         connection.close();
         connections.write().remove(&conn_id);
+        println!("🔌 [BROKER] Connection {} closed and removed", conn_id);
         host_debug!("Connection {} closed", conn_id);
     }
     
