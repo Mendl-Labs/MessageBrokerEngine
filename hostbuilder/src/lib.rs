@@ -833,10 +833,15 @@ impl MessageBrokerHost {
                 .collect()
         };
         
+        println!("📤 [BROKER] Routing to {} active connection(s)", subscriber_conns.len());
+        
         // Route message to all subscribers
         for conn in subscriber_conns {
-            // Send message to subscriber (ignore errors - subscriber may have disconnected)
-            let _ = conn.send_message(&topic, &data).await;
+            let conn_id = conn.get_id();
+            match conn.send_message(&topic, &data).await {
+                Ok(_) => println!("✅ [BROKER] Sent message to connection {}", conn_id),
+                Err(e) => println!("❌ [BROKER] Failed to send to connection {}: {}", conn_id, e),
+            }
         }
         
         metrics.record_message(0, data.len());  // 0 latency for now
