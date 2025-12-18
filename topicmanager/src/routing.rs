@@ -407,6 +407,26 @@ impl TopicSubscriptionManager {
         topic_map.get(topic).cloned().unwrap_or_default().into_iter().collect()
     }
     
+    /// Unsubscribe a subscriber from all topics
+    pub fn unsubscribe_all(&self, subscriber_id: u64) {
+        let mut subscriptions = self.subscriptions.write();
+        let mut topic_map = self.topic_to_subscribers.write();
+        
+        // Get all topics this subscriber is subscribed to
+        if let Some(sub_list) = subscriptions.remove(&subscriber_id) {
+            for sub in sub_list {
+                if let Some(subscribers) = topic_map.get_mut(&sub.topic_pattern) {
+                    subscribers.remove(&subscriber_id);
+                    if subscribers.is_empty() {
+                        topic_map.remove(&sub.topic_pattern);
+                    }
+                }
+            }
+        }
+        
+        route_info!("Subscriber {} unsubscribed from all topics", subscriber_id);
+    }
+    
     /// Get all subscriptions for a subscriber
     pub fn get_subscriptions(&self, subscriber_id: u64) -> Vec<TopicSubscription> {
         let subscriptions = self.subscriptions.read();

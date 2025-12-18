@@ -835,13 +835,28 @@ impl MessageBrokerHost {
         
         println!("📤 [BROKER] Routing to {} active connection(s)", subscriber_conns.len());
         
+        // Track failed connections to remove
+        let mut failed_conn_ids = Vec::new();
+        
         // Route message to all subscribers
         for conn in subscriber_conns {
             let conn_id = conn.get_id();
             match conn.send_message(&topic, &data).await {
                 Ok(_) => println!("✅ [BROKER] Sent message to connection {}", conn_id),
-                Err(e) => println!("❌ [BROKER] Failed to send to connection {}: {}", conn_id, e),
+                Err(e) => {
+                    println!("❌ [BROKER] Failed to send to connection {}: {}", conn_id, e);
+                    // Mark connection as inactive and queue for removal
+                    conn.close();
+                    failed_conn_ids.push(conn_id);
+                }
             }
+        }
+        
+        // Remove failed connections from subscriptions and connection map
+        for conn_id in failed_conn_ids {
+            subscription_manager.unsubscribe_all(conn_id);
+            connections.write().remove(&conn_id);
+            println!("🔌 [BROKER] Removed dead connection {}", conn_id);
         }
         
         metrics.record_message(0, data.len());  // 0 latency for now
