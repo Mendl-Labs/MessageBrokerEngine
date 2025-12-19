@@ -497,6 +497,15 @@ pub struct ChromosomeEvalRequest {
     /// Data cache key (workers with this data cached process faster)
     #[prost(string, tag = "9")]
     pub data_cache_key: String,
+    /// If true, this is a final evaluation - run full backtest with all analysis
+    #[prost(bool, tag = "10")]
+    pub is_final_evaluation: bool,
+    /// Run Monte Carlo simulation (only used when is_final_evaluation=true)
+    #[prost(bool, tag = "11")]
+    pub run_monte_carlo: bool,
+    /// Run Walk-Forward analysis (only used when is_final_evaluation=true)
+    #[prost(bool, tag = "12")]
+    pub run_walk_forward: bool,
 }
 
 /// Result from chromosome evaluation
@@ -541,6 +550,39 @@ pub struct ChromosomeEvalResult {
     /// Processing duration in milliseconds
     #[prost(int64, tag = "13")]
     pub processing_duration_ms: i64,
+    /// Win rate (percentage of profitable trades)
+    #[prost(double, tag = "14")]
+    pub win_rate: f64,
+    /// Profit factor (gross profit / gross loss)
+    #[prost(double, tag = "15")]
+    pub profit_factor: f64,
+    /// Number of closed trades
+    #[prost(int32, tag = "16")]
+    pub closed_trades: i32,
+    /// Total orders placed
+    #[prost(int32, tag = "17")]
+    pub total_orders: i32,
+    /// Starting capital
+    #[prost(double, tag = "18")]
+    pub starting_capital: f64,
+    /// Ending capital
+    #[prost(double, tag = "19")]
+    pub ending_capital: f64,
+    /// Total return percentage
+    #[prost(double, tag = "20")]
+    pub total_return_pct: f64,
+    /// Monte Carlo results (serialized JSON, populated when is_final_evaluation)
+    #[prost(bytes, tag = "21")]
+    pub monte_carlo_results: Vec<u8>,
+    /// Walk-forward results (serialized JSON, populated when is_final_evaluation)
+    #[prost(bytes, tag = "22")]
+    pub walk_forward_results: Vec<u8>,
+    /// Closed trades data (serialized JSON, populated when is_final_evaluation)
+    #[prost(bytes, tag = "23")]
+    pub closed_trades_data: Vec<u8>,
+    /// Indicates this is a final evaluation result with full data
+    #[prost(bool, tag = "24")]
+    pub is_final_evaluation: bool,
 }
 
 /// Request to broadcast market data to all workers for caching
