@@ -506,6 +506,15 @@ pub struct ChromosomeEvalRequest {
     /// Run Walk-Forward analysis (only used when is_final_evaluation=true)
     #[prost(bool, tag = "12")]
     pub run_walk_forward: bool,
+    /// Train data end index (exclusive). GA fitness uses ticks [0, train_end_idx)
+    #[prost(int64, tag = "13")]
+    pub train_end_idx: i64,
+    /// Test data end index (exclusive). Walk-forward uses ticks [train_end_idx, test_end_idx)
+    #[prost(int64, tag = "14")]
+    pub test_end_idx: i64,
+    /// Total tick count. Final validation uses ticks [test_end_idx, total_ticks)
+    #[prost(int64, tag = "15")]
+    pub total_ticks: i64,
 }
 
 /// Result from chromosome evaluation
@@ -626,6 +635,9 @@ pub struct DataCacheAck {
     /// Number of concurrent evaluations this worker can handle
     #[prost(int32, tag = "4")]
     pub capacity: i32,
+    /// Number of ticks in the dataset (for train/test/validate splits)
+    #[prost(int64, tag = "5")]
+    pub tick_count: i64,
 }
 
 /// Request for workers to load data from database (no data payload over broker)
