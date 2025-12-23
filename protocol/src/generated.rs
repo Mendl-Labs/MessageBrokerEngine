@@ -592,6 +592,9 @@ pub struct ChromosomeEvalResult {
     /// Indicates this is a final evaluation result with full data
     #[prost(bool, tag = "24")]
     pub is_final_evaluation: bool,
+    /// Statistical significance data (serialized JSON, populated when is_final_evaluation)
+    #[prost(string, tag = "25")]
+    pub statistical_significance: String,
 }
 
 /// Request to broadcast market data to all workers for caching
