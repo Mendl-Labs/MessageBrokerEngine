@@ -589,6 +589,15 @@ impl Connection {
         self.update_activity();
         Ok(())
     }
+    
+    /// Send raw bytes to this connection (for control messages like SUBSCRIBE_ACK)
+    pub async fn send_raw(&self, data: &[u8]) -> Result<(), std::io::Error> {
+        let mut writer = self.writer.lock().await;
+        writer.write_all(data).await?;
+        writer.flush().await?;
+        self.update_activity();
+        Ok(())
+    }
 }
 
 // Ultra-high performance message broker host with enhancements
@@ -899,7 +908,7 @@ impl MessageBrokerHost {
         ack_buffer.extend_from_slice(&(topic_bytes.len() as u32).to_le_bytes());
         ack_buffer.extend_from_slice(topic_bytes);
         
-        if let Err(e) = connection.send(&ack_buffer).await {
+        if let Err(e) = connection.send_raw(&ack_buffer).await {
             println!("⚠️ [BROKER] Failed to send SUBSCRIBE_ACK to connection {}: {}", conn_id, e);
         } else {
             println!("✅ [BROKER] Sent SUBSCRIBE_ACK for '{}' to connection {}", topic_pattern, conn_id);
