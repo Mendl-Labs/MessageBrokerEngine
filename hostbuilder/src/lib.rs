@@ -890,6 +890,21 @@ impl MessageBrokerHost {
         
         println!("🔔 [BROKER] Connection {} subscribed to '{}'", conn_id, topic_pattern);
         host_info!("Connection {} subscribed to '{}'", conn_id, topic_pattern);
+        
+        // Send SUBSCRIBE_ACK back to client
+        // Wire format: [msg_type: u8 = 0x03][topic_len: u32][topic: bytes]
+        let topic_bytes = topic_pattern.as_bytes();
+        let mut ack_buffer = Vec::with_capacity(1 + 4 + topic_bytes.len());
+        ack_buffer.push(0x03); // SUBSCRIBE_ACK
+        ack_buffer.extend_from_slice(&(topic_bytes.len() as u32).to_le_bytes());
+        ack_buffer.extend_from_slice(topic_bytes);
+        
+        if let Err(e) = connection.send(&ack_buffer).await {
+            println!("⚠️ [BROKER] Failed to send SUBSCRIBE_ACK to connection {}: {}", conn_id, e);
+        } else {
+            println!("✅ [BROKER] Sent SUBSCRIBE_ACK for '{}' to connection {}", topic_pattern, conn_id);
+        }
+        
         Ok(())
     }
 
