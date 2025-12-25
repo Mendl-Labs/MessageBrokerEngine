@@ -515,6 +515,10 @@ pub struct ChromosomeEvalRequest {
     /// Total tick count. Final validation uses ticks [test_end_idx, total_ticks)
     #[prost(int64, tag = "15")]
     pub total_ticks: i64,
+    /// Custom fitness weights (JSON serialized, optional)
+    /// If empty, uses default balanced weights
+    #[prost(bytes, tag = "16")]
+    pub fitness_weights_json: Vec<u8>,
 }
 
 /// Result from chromosome evaluation
