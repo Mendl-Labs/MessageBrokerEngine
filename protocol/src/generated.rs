@@ -519,6 +519,16 @@ pub struct ChromosomeEvalRequest {
     /// If empty, uses default balanced weights
     #[prost(bytes, tag = "16")]
     pub fitness_weights_json: Vec<u8>,
+    /// Initial 30-day trading volume in USD (for fee tier calculations)
+    /// 0.0 = use exchange default fee tier, higher values = lower fees
+    #[prost(double, tag = "17")]
+    pub initial_30d_volume: f64,
+    /// Percentage of initial_capital to hold as base asset (e.g., 0.5 = 50% in BTC, 50% in USD)
+    #[prost(double, tag = "18")]
+    pub initial_inventory_pct: f64,
+    /// Number of Monte Carlo simulation runs (default 1000, capped at 200 for speed)
+    #[prost(uint32, tag = "19")]
+    pub monte_carlo_runs: u32,
 }
 
 /// Result from chromosome evaluation
