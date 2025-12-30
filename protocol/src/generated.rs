@@ -609,6 +609,51 @@ pub struct ChromosomeEvalResult {
     /// Statistical significance data (serialized JSON, populated when is_final_evaluation)
     #[prost(string, tag = "25")]
     pub statistical_significance: String,
+    /// Best trade P&L in USD
+    #[prost(double, tag = "26")]
+    pub best_trade_pnl: f64,
+    /// Worst trade P&L in USD
+    #[prost(double, tag = "27")]
+    pub worst_trade_pnl: f64,
+    /// Average trade P&L in USD
+    #[prost(double, tag = "28")]
+    pub avg_trade_pnl: f64,
+    /// Average time in trade in milliseconds
+    #[prost(double, tag = "29")]
+    pub avg_time_in_trade_ms: f64,
+    /// Total volume traded in USD
+    #[prost(double, tag = "30")]
+    pub total_volume: f64,
+    /// Total fees paid in USD
+    #[prost(double, tag = "31")]
+    pub total_fees: f64,
+    /// Inventory metrics (serialized JSON)
+    #[prost(bytes, tag = "32")]
+    pub inventory_metrics: Vec<u8>,
+    /// Execution metrics (serialized JSON)
+    #[prost(bytes, tag = "33")]
+    pub execution_metrics: Vec<u8>,
+    /// Average inventory over the backtest period
+    #[prost(double, tag = "34")]
+    pub avg_inventory: f64,
+    /// Max inventory held during backtest
+    #[prost(double, tag = "35")]
+    pub max_inventory: f64,
+    /// Inventory zero crossings (sign changes)
+    #[prost(int32, tag = "36")]
+    pub zero_crossings: i32,
+    /// Average fill rate (0.0-1.0)
+    #[prost(double, tag = "37")]
+    pub avg_fill_rate: f64,
+    /// Average queue position
+    #[prost(double, tag = "38")]
+    pub avg_queue_position: f64,
+    /// Partial fill percentage (0.0-100.0)
+    #[prost(double, tag = "39")]
+    pub partial_fill_pct: f64,
+    /// Average latency in milliseconds
+    #[prost(double, tag = "40")]
+    pub avg_latency_ms: f64,
 }
 
 /// Request to broadcast market data to all workers for caching
