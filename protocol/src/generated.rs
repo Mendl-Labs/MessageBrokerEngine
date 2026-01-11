@@ -702,6 +702,23 @@ pub struct DataCacheAck {
     pub tick_count: i64,
 }
 
+/// Asset information for multi-asset portfolio operations
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct AssetInfo {
+    /// Trading symbol (e.g., "BTCUSD", "ETHUSD")
+    #[prost(string, tag = "1")]
+    pub symbol: String,
+    /// Exchange name (e.g., "kraken", "binance")
+    #[prost(string, tag = "2")]
+    pub exchange: String,
+    /// Strategy type for this asset (optional): "momentum", "mean_reversion", "market_making"
+    #[prost(string, tag = "3")]
+    pub strategy: String,
+    /// Capital allocation weight (0.0 to 1.0)
+    #[prost(double, tag = "4")]
+    pub weight: f64,
+}
+
 /// Request for workers to load data from database (no data payload over broker)
 /// 
 /// This is the preferred approach for large datasets. Instead of broadcasting
@@ -716,13 +733,13 @@ pub struct DataCacheAck {
 /// - Memory efficient (no intermediate copies)
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct DataLoadRequest {
-    /// Unique cache key for this dataset
+    /// Unique cache key for this dataset (job-level key)
     #[prost(string, tag = "1")]
     pub cache_key: String,
-    /// Trading symbol(s) to load
+    /// Trading symbol(s) to load (legacy, use `assets` for multi-asset)
     #[prost(string, repeated, tag = "2")]
     pub symbols: Vec<String>,
-    /// Exchange name
+    /// Exchange name (legacy, use `assets` for multi-asset)
     #[prost(string, tag = "3")]
     pub exchange: String,
     /// Start timestamp (ISO 8601 or Unix epoch seconds)
@@ -740,4 +757,8 @@ pub struct DataLoadRequest {
     /// Job ID for correlation
     #[prost(string, tag = "8")]
     pub job_id: String,
+    /// Multi-asset portfolio: list of all assets to load
+    /// If non-empty, takes precedence over symbols/exchange fields
+    #[prost(message, repeated, tag = "9")]
+    pub assets: Vec<AssetInfo>,
 }
