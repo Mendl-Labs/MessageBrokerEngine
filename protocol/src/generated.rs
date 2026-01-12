@@ -529,6 +529,10 @@ pub struct ChromosomeEvalRequest {
     /// Number of Monte Carlo simulation runs (default 1000, capped at 200 for speed)
     #[prost(uint32, tag = "19")]
     pub monte_carlo_runs: u32,
+    /// Strategy type: "market_making", "momentum", "mean_reversion"
+    /// Used to determine which chromosome type and evaluation logic to use
+    #[prost(string, tag = "20")]
+    pub strategy_type: String,
 }
 
 /// Result from chromosome evaluation
