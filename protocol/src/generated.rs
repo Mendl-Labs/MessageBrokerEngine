@@ -533,6 +533,10 @@ pub struct ChromosomeEvalRequest {
     /// Used to determine which chromosome type and evaluation logic to use
     #[prost(string, tag = "20")]
     pub strategy_type: String,
+    /// Multi-asset portfolio: list of all assets for portfolio backtests
+    /// When non-empty, workers should load and evaluate ALL assets
+    #[prost(message, repeated, tag = "21")]
+    pub assets: Vec<AssetInfo>,
 }
 
 /// Result from chromosome evaluation
