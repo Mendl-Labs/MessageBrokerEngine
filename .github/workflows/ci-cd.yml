@@ -340,6 +340,7 @@ jobs:
           Write-Host "[INFO] Deploying with image tag: $imageTag"
           
           # Removed --wait/--atomic to prevent CI timeout - deployments verified separately
+          # Note: Do NOT use --force as it causes PVC replacement errors
           $helmArgs = @(
             "--namespace", "${{ env.NAMESPACE }}",
             "--create-namespace",
@@ -352,7 +353,6 @@ jobs:
             "--set", "config.database.port=$($env:POSTGRES_PORT)",
             "--set", "config.database.database=$($env:POSTGRES_DB)",
             "--set", "replicaCount=1",
-            "--force",
             "--timeout", "5m"
           )
           
@@ -395,9 +395,12 @@ jobs:
           
           # Brief wait for pods (non-blocking)
           Write-Host "[INFO] Waiting for pods to stabilize (2 min timeout)..."
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=messagebroker-engine-helm -n ${{ env.NAMESPACE }} --timeout=120s 2>&1
+          $ErrorActionPreference = 'SilentlyContinue'
+          $waitResult = kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=messagebroker-engine-helm -n ${{ env.NAMESPACE }} --timeout=120s 2>&1
+          $waitExitCode = $LASTEXITCODE
+          $ErrorActionPreference = 'Stop'
           
-          if ($LASTEXITCODE -eq 0) {
+          if ($waitExitCode -eq 0) {
             Write-Host "[SUCCESS] Pods are ready"
           } else {
             Write-Host "[WARN] Some pods may not be ready yet - gathering diagnostics..."
