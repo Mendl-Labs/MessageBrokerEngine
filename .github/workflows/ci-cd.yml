@@ -396,7 +396,7 @@ jobs:
           # Brief wait for pods (non-blocking)
           Write-Host "[INFO] Waiting for pods to stabilize (2 min timeout)..."
           $ErrorActionPreference = 'SilentlyContinue'
-          $waitResult = kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=messagebroker-engine-helm -n ${{ env.NAMESPACE }} --timeout=120s 2>&1
+          $waitResult = kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=message-broker-engine -n ${{ env.NAMESPACE }} --timeout=120s 2>&1
           $waitExitCode = $LASTEXITCODE
           $ErrorActionPreference = 'Stop'
           
@@ -412,15 +412,19 @@ jobs:
             kubectl get events -n ${{ env.NAMESPACE }} --sort-by='.lastTimestamp' | Select-Object -Last 30
             Write-Host ""
             Write-Host "=== Pod Descriptions ==="
-            kubectl describe pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=messagebroker-engine-helm | Select-String -Pattern "Status:|Ready:|Warning|Error|Reason:|Message:" | Select-Object -First 30
+            kubectl describe pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=message-broker-engine | Select-String -Pattern "Status:|Ready:|Warning|Error|Reason:|Message:" | Select-Object -First 30
             Write-Host ""
             Write-Host "=== Pod Logs (if available) ==="
-            $pods = kubectl get pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=messagebroker-engine-helm -o jsonpath='{.items[*].metadata.name}'
-            foreach ($pod in $pods.Split(' ')) {
-              if ($pod) {
-                Write-Host "--- Logs for $pod ---"
-                kubectl logs -n ${{ env.NAMESPACE }} $pod --tail=50 2>&1
+            $pods = kubectl get pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=message-broker-engine -o jsonpath='{.items[*].metadata.name}'
+            if ($pods) {
+              foreach ($pod in $pods.Split(' ')) {
+                if ($pod) {
+                  Write-Host "--- Logs for $pod ---"
+                  kubectl logs -n ${{ env.NAMESPACE }} $pod --tail=50 2>&1
+                }
               }
+            } else {
+              Write-Host "[INFO] No pods found with label app.kubernetes.io/name=message-broker-engine"
             }
             # Don't fail the build - just warn
             Write-Host "[WARN] Pods may still be starting - check cluster manually if issues persist"
