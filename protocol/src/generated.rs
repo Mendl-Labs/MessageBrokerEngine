@@ -139,7 +139,7 @@ pub struct SystemStatus {
 pub struct PublishRequest {
     #[prost(string, tag = "1")]
     pub topic: String,
-    #[prost(oneof = "publish_request::Payload", tags = "2, 3, 4, 5, 6, 7, 8")]
+    #[prost(oneof = "publish_request::Payload", tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14")]
     pub payload: Option<publish_request::Payload>,
 }
 
@@ -166,6 +166,15 @@ pub mod publish_request {
         PortfolioPayload(PortfolioMessage),
         #[prost(message, tag = "10")]
         MarketPayload(MarketMessage),
+        // Strategy deployment events
+        #[prost(message, tag = "11")]
+        StrategyDeployment(StrategyDeployment),
+        #[prost(message, tag = "12")]
+        StrategyDeactivation(StrategyDeactivation),
+        #[prost(message, tag = "13")]
+        StrategyDeploymentAck(StrategyDeploymentAck),
+        #[prost(message, tag = "14")]
+        DeploymentStatusResponse(DeploymentStatusResponse),
     }
 }
 
@@ -769,4 +778,348 @@ pub struct DataLoadRequest {
     /// If non-empty, takes precedence over symbols/exchange fields
     #[prost(message, repeated, tag = "9")]
     pub assets: Vec<AssetInfo>,
+}
+
+// ============================================================================
+// STRATEGY DEPLOYMENT MESSAGES
+// ============================================================================
+// These messages enable real-time deployment notifications from BacktestingEngine
+// to SignalEngine. Instead of SignalEngine polling the database, it subscribes
+// to deployment events and hot-loads/unloads strategies without restart.
+
+/// Strategy deployment event - sent when a strategy is approved and ready to deploy
+/// SignalEngine subscribes to topic: "strategy.deployment"
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct StrategyDeployment {
+    /// Strategy definition ID
+    #[prost(string, tag = "1")]
+    pub strategy_id: String,
+    /// Specific instance being deployed
+    #[prost(string, tag = "2")]
+    pub instance_id: String,
+    /// Tenant ID for multi-tenancy isolation
+    #[prost(string, tag = "3")]
+    pub tenant_id: String,
+    /// Strategy type (e.g., "AvellanedaStoikov", "UltraFastMomentum")
+    #[prost(string, tag = "4")]
+    pub strategy_type: String,
+    /// Human-readable strategy name
+    #[prost(string, tag = "5")]
+    pub strategy_name: String,
+    /// Strategy version
+    #[prost(string, tag = "6")]
+    pub version: String,
+    /// Serialized strategy parameters (JSON)
+    #[prost(bytes, tag = "7")]
+    pub parameters: Vec<u8>,
+    /// Initial capital allocated to this strategy
+    #[prost(double, tag = "8")]
+    pub initial_capital: f64,
+    /// Target exchanges for execution
+    #[prost(string, repeated, tag = "9")]
+    pub target_exchanges: Vec<String>,
+    /// Trading symbols this strategy trades
+    #[prost(string, repeated, tag = "10")]
+    pub symbols: Vec<String>,
+    /// User who approved the deployment
+    #[prost(string, tag = "11")]
+    pub approved_by: String,
+    /// ISO 8601 timestamp when approved
+    #[prost(string, tag = "12")]
+    pub approved_at: String,
+    /// Performance summary from backtesting (JSON)
+    #[prost(bytes, tag = "13")]
+    pub performance_summary: Vec<u8>,
+    /// Risk metrics from backtesting (JSON)
+    #[prost(bytes, tag = "14")]
+    pub risk_metrics: Vec<u8>,
+    /// Whether this is a high-priority deployment (admin approved)
+    #[prost(bool, tag = "15")]
+    pub admin_approved: bool,
+    /// Deployment timestamp
+    #[prost(int64, tag = "16")]
+    pub timestamp: i64,
+}
+
+/// Strategy deactivation event - sent when a strategy is deactivated
+/// SignalEngine subscribes to topic: "strategy.deactivation"
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct StrategyDeactivation {
+    /// Strategy definition ID
+    #[prost(string, tag = "1")]
+    pub strategy_id: String,
+    /// Specific instance being deactivated
+    #[prost(string, tag = "2")]
+    pub instance_id: String,
+    /// Tenant ID for multi-tenancy isolation
+    #[prost(string, tag = "3")]
+    pub tenant_id: String,
+    /// Reason for deactivation
+    #[prost(string, tag = "4")]
+    pub reason: String,
+    /// User who initiated deactivation
+    #[prost(string, tag = "5")]
+    pub deactivated_by: String,
+    /// Whether to close open positions immediately
+    #[prost(bool, tag = "6")]
+    pub close_positions: bool,
+    /// Whether to cancel pending orders immediately
+    #[prost(bool, tag = "7")]
+    pub cancel_orders: bool,
+    /// Deactivation timestamp
+    #[prost(int64, tag = "8")]
+    pub timestamp: i64,
+}
+
+/// Strategy deployment acknowledgment - sent by SignalEngine after processing
+/// BacktestingEngine subscribes to topic: "strategy.deployment.ack"
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct StrategyDeploymentAck {
+    /// Strategy definition ID
+    #[prost(string, tag = "1")]
+    pub strategy_id: String,
+    /// Specific instance that was deployed
+    #[prost(string, tag = "2")]
+    pub instance_id: String,
+    /// SignalEngine node that deployed the strategy
+    #[prost(string, tag = "3")]
+    pub signal_engine_node: String,
+    /// Whether deployment succeeded
+    #[prost(bool, tag = "4")]
+    pub success: bool,
+    /// Error message if deployment failed
+    #[prost(string, tag = "5")]
+    pub error_message: String,
+    /// Timestamp when strategy was loaded
+    #[prost(int64, tag = "6")]
+    pub loaded_at: i64,
+    /// Exchanges where strategy is now active
+    #[prost(string, repeated, tag = "7")]
+    pub active_exchanges: Vec<String>,
+}
+
+/// Bulk deployment status request - get status of all deployed strategies
+/// SignalEngine subscribes to topic: "strategy.status.request"
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct DeploymentStatusRequest {
+    /// Tenant ID to filter by (empty for all)
+    #[prost(string, tag = "1")]
+    pub tenant_id: String,
+    /// Request ID for correlation
+    #[prost(string, tag = "2")]
+    pub request_id: String,
+}
+
+/// Deployed strategy status - response with all active strategies
+/// Published to topic: "strategy.status.response"
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct DeploymentStatusResponse {
+    /// Request ID for correlation
+    #[prost(string, tag = "1")]
+    pub request_id: String,
+    /// SignalEngine node responding
+    #[prost(string, tag = "2")]
+    pub signal_engine_node: String,
+    /// List of active strategies
+    #[prost(message, repeated, tag = "3")]
+    pub active_strategies: Vec<ActiveStrategyInfo>,
+    /// Total memory used by strategies (bytes)
+    #[prost(int64, tag = "4")]
+    pub total_memory_bytes: i64,
+    /// Total CPU utilization (0.0 - 100.0)
+    #[prost(float, tag = "5")]
+    pub cpu_utilization: f32,
+}
+
+/// Information about an active strategy
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct ActiveStrategyInfo {
+    /// Strategy definition ID
+    #[prost(string, tag = "1")]
+    pub strategy_id: String,
+    /// Specific instance ID
+    #[prost(string, tag = "2")]
+    pub instance_id: String,
+    /// Tenant ID
+    #[prost(string, tag = "3")]
+    pub tenant_id: String,
+    /// Strategy type
+    #[prost(string, tag = "4")]
+    pub strategy_type: String,
+    /// Strategy name
+    #[prost(string, tag = "5")]
+    pub strategy_name: String,
+    /// Exchanges where active
+    #[prost(string, repeated, tag = "6")]
+    pub active_exchanges: Vec<String>,
+    /// Symbols being traded
+    #[prost(string, repeated, tag = "7")]
+    pub symbols: Vec<String>,
+    /// Current unrealized P&L
+    #[prost(double, tag = "8")]
+    pub unrealized_pnl: f64,
+    /// Total realized P&L since deployment
+    #[prost(double, tag = "9")]
+    pub realized_pnl: f64,
+    /// Number of open positions
+    #[prost(int32, tag = "10")]
+    pub open_positions: i32,
+    /// Number of pending orders
+    #[prost(int32, tag = "11")]
+    pub pending_orders: i32,
+    /// Timestamp when deployed
+    #[prost(int64, tag = "12")]
+    pub deployed_at: i64,
+    /// Number of trades since deployment
+    #[prost(int64, tag = "13")]
+    pub total_trades: i64,
+}
+
+// ============================================================================
+// Market Data Subscription Messages
+// ============================================================================
+//
+// These messages enable demand-driven market data streaming. DataEngine only
+// connects to exchange WebSockets when SignalEngine has active strategies
+// that need specific symbols/exchanges.
+//
+// Flow:
+// 1. Strategy deployed → SignalEngine publishes MarketDataSubscribe
+// 2. DataEngine receives request → Connects to exchange WebSocket
+// 3. DataEngine streams data to MessageBroker → SignalEngine receives
+// 4. Strategy deactivated → SignalEngine publishes MarketDataUnsubscribe
+// 5. DataEngine disconnects (if no other subscribers for that symbol)
+
+/// Market data subscription request - published by SignalEngine when strategies need data
+/// DataEngine subscribes to topic: "market.subscription.subscribe"
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct MarketDataSubscribe {
+    /// Unique subscription ID for tracking
+    #[prost(string, tag = "1")]
+    pub subscription_id: String,
+    /// Tenant ID making the request
+    #[prost(string, tag = "2")]
+    pub tenant_id: String,
+    /// Strategy instance requesting the data
+    #[prost(string, tag = "3")]
+    pub strategy_instance_id: String,
+    /// Exchange to connect to (e.g., "kraken", "coinbase", "binance_us")
+    #[prost(string, tag = "4")]
+    pub exchange: String,
+    /// Symbols to subscribe to (e.g., ["XBT/USD", "ETH/USD"])
+    #[prost(string, repeated, tag = "5")]
+    pub symbols: Vec<String>,
+    /// Data types needed (e.g., ["trades", "orderbook", "ticker"])
+    #[prost(string, repeated, tag = "6")]
+    pub data_types: Vec<String>,
+    /// Order book depth (if orderbook data type requested)
+    #[prost(int32, tag = "7")]
+    pub orderbook_depth: i32,
+    /// Timestamp of request
+    #[prost(int64, tag = "8")]
+    pub timestamp: i64,
+}
+
+/// Market data unsubscription request - published by SignalEngine when strategies stop
+/// DataEngine subscribes to topic: "market.subscription.unsubscribe"
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct MarketDataUnsubscribe {
+    /// Subscription ID to cancel (from original MarketDataSubscribe)
+    #[prost(string, tag = "1")]
+    pub subscription_id: String,
+    /// Strategy instance no longer needing data
+    #[prost(string, tag = "2")]
+    pub strategy_instance_id: String,
+    /// Exchange to potentially disconnect from
+    #[prost(string, tag = "3")]
+    pub exchange: String,
+    /// Symbols to unsubscribe from
+    #[prost(string, repeated, tag = "4")]
+    pub symbols: Vec<String>,
+    /// Reason for unsubscription
+    #[prost(string, tag = "5")]
+    pub reason: String,
+    /// Timestamp of request
+    #[prost(int64, tag = "6")]
+    pub timestamp: i64,
+}
+
+/// Subscription acknowledgment - sent by DataEngine after processing subscription
+/// SignalEngine subscribes to topic: "market.subscription.ack"
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct MarketDataSubscriptionAck {
+    /// Subscription ID being acknowledged
+    #[prost(string, tag = "1")]
+    pub subscription_id: String,
+    /// Whether subscription was successful
+    #[prost(bool, tag = "2")]
+    pub success: bool,
+    /// Error message if failed
+    #[prost(string, tag = "3")]
+    pub error_message: String,
+    /// DataEngine node handling this subscription
+    #[prost(string, tag = "4")]
+    pub data_engine_node: String,
+    /// Topics where data will be published
+    #[prost(string, repeated, tag = "5")]
+    pub data_topics: Vec<String>,
+    /// Timestamp of acknowledgment
+    #[prost(int64, tag = "6")]
+    pub timestamp: i64,
+}
+
+/// Active subscriptions status request
+/// DataEngine subscribes to topic: "market.subscription.status.request"
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct MarketDataStatusRequest {
+    /// Request ID for correlation
+    #[prost(string, tag = "1")]
+    pub request_id: String,
+    /// Filter by exchange (empty for all)
+    #[prost(string, tag = "2")]
+    pub exchange_filter: String,
+}
+
+/// Active subscriptions status response
+/// Published to topic: "market.subscription.status.response"
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct MarketDataStatusResponse {
+    /// Request ID for correlation
+    #[prost(string, tag = "1")]
+    pub request_id: String,
+    /// DataEngine node responding
+    #[prost(string, tag = "2")]
+    pub data_engine_node: String,
+    /// Active exchange connections
+    #[prost(message, repeated, tag = "3")]
+    pub active_connections: Vec<ExchangeConnectionInfo>,
+    /// Total active subscriptions
+    #[prost(int32, tag = "4")]
+    pub total_subscriptions: i32,
+}
+
+/// Information about an active exchange connection
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct ExchangeConnectionInfo {
+    /// Exchange name
+    #[prost(string, tag = "1")]
+    pub exchange: String,
+    /// Whether WebSocket is connected
+    #[prost(bool, tag = "2")]
+    pub connected: bool,
+    /// Symbols currently subscribed
+    #[prost(string, repeated, tag = "3")]
+    pub symbols: Vec<String>,
+    /// Data types being streamed
+    #[prost(string, repeated, tag = "4")]
+    pub data_types: Vec<String>,
+    /// Number of strategy instances using this connection
+    #[prost(int32, tag = "5")]
+    pub subscriber_count: i32,
+    /// Timestamp when connection was established
+    #[prost(int64, tag = "6")]
+    pub connected_since: i64,
+    /// Messages processed since connection
+    #[prost(int64, tag = "7")]
+    pub messages_processed: i64,
 }
