@@ -316,6 +316,10 @@ pub struct TopicSubscriptionManager {
     topic_to_subscribers: Arc<RwLock<HashMap<String, HashSet<u64>>>>, // topic -> subscriber_ids
     #[allow(dead_code)]
     pattern_subscriptions: Arc<RwLock<Vec<PatternSubscription>>>,
+    /// Optional Redis state sync for persistence and multi-replica support.
+    /// When set, subscription changes are synced to Redis asynchronously.
+    #[cfg(feature = "redis-sync")]
+    redis_sync: Option<Arc<crate::redis_state::RedisStateSync>>,
 }
 
 /// Topic subscription with filtering
@@ -355,25 +359,89 @@ impl TopicSubscriptionManager {
             subscriptions: Arc::new(RwLock::new(HashMap::new())),
             topic_to_subscribers: Arc::new(RwLock::new(HashMap::new())),
             pattern_subscriptions: Arc::new(RwLock::new(Vec::new())),
+            #[cfg(feature = "redis-sync")]
+            redis_sync: None,
         }
+    }
+
+    /// Create with Redis state sync enabled.
+    #[cfg(feature = "redis-sync")]
+    pub fn with_redis(redis_sync: Arc<crate::redis_state::RedisStateSync>) -> Self {
+        Self {
+            subscriptions: Arc::new(RwLock::new(HashMap::new())),
+            topic_to_subscribers: Arc::new(RwLock::new(HashMap::new())),
+            pattern_subscriptions: Arc::new(RwLock::new(Vec::new())),
+            redis_sync: Some(redis_sync),
+        }
+    }
+
+    /// Restore subscriptions from Redis (call on startup for crash recovery).
+    #[cfg(feature = "redis-sync")]
+    pub async fn restore_from_redis(&self) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+        let sync = match &self.redis_sync {
+            Some(s) => s,
+            None => return Ok(0),
+        };
+
+        let details = sync.load_subscription_details().await?;
+        let count = details.len();
+
+        let mut subscriptions = self.subscriptions.write();
+        let mut topic_map = self.topic_to_subscribers.write();
+
+        for persisted in details {
+            // Add to subscriber's subscription list
+            subscriptions
+                .entry(persisted.subscriber_id)
+                .or_insert_with(Vec::new)
+                .push(TopicSubscription {
+                    topic_pattern: persisted.topic_pattern.clone(),
+                    filters: Vec::new(),
+                    metadata: persisted.metadata,
+                });
+
+            // Add to topic -> subscribers mapping
+            topic_map
+                .entry(persisted.topic_pattern)
+                .or_insert_with(HashSet::new)
+                .insert(persisted.subscriber_id);
+        }
+
+        route_info!("Restored {} subscriptions from Redis", count);
+        Ok(count)
     }
     
     /// Subscribe to a topic with optional filters
     pub fn subscribe(&self, subscriber_id: u64, subscription: TopicSubscription) {
+        let topic_pattern = subscription.topic_pattern.clone();
+        #[cfg(feature = "redis-sync")]
+        let metadata = subscription.metadata.clone();
+
         let mut subscriptions = self.subscriptions.write();
         let mut topic_map = self.topic_to_subscribers.write();
         
         // Add to subscriber's subscription list
         subscriptions.entry(subscriber_id)
             .or_insert_with(Vec::new)
-            .push(subscription.clone());
+            .push(subscription);
         
         // Add to topic -> subscribers mapping
-        topic_map.entry(subscription.topic_pattern.clone())
+        topic_map.entry(topic_pattern.clone())
             .or_insert_with(HashSet::new)
             .insert(subscriber_id);
         
-        route_info!("Subscriber {} subscribed to topic '{}'", subscriber_id, subscription.topic_pattern);
+        route_info!("Subscriber {} subscribed to topic '{}'", subscriber_id, topic_pattern);
+
+        // Fire-and-forget Redis sync
+        #[cfg(feature = "redis-sync")]
+        if let Some(ref sync) = self.redis_sync {
+            let sync = Arc::clone(sync);
+            tokio::spawn(async move {
+                if let Err(e) = sync.persist_subscription(subscriber_id, &topic_pattern, &metadata).await {
+                    eprintln!("[RedisSync] Failed to persist subscription: {}", e);
+                }
+            });
+        }
     }
     
     /// Unsubscribe from a topic
@@ -398,6 +466,19 @@ impl TopicSubscriptionManager {
         }
         
         route_info!("Subscriber {} unsubscribed from topic '{}'", subscriber_id, topic_pattern);
+
+        // Fire-and-forget Redis sync
+        #[cfg(feature = "redis-sync")]
+        if let Some(ref sync) = self.redis_sync {
+            let sync = Arc::clone(sync);
+            let tp = topic_pattern.to_string();
+            tokio::spawn(async move {
+                if let Err(e) = sync.remove_subscription(subscriber_id, &tp).await {
+                    eprintln!("[RedisSync] Failed to remove subscription: {}", e);
+                }
+            });
+        }
+
         true
     }
     
@@ -425,6 +506,17 @@ impl TopicSubscriptionManager {
         }
         
         route_info!("Subscriber {} unsubscribed from all topics", subscriber_id);
+
+        // Fire-and-forget Redis sync
+        #[cfg(feature = "redis-sync")]
+        if let Some(ref sync) = self.redis_sync {
+            let sync = Arc::clone(sync);
+            tokio::spawn(async move {
+                if let Err(e) = sync.remove_all_subscriptions(subscriber_id).await {
+                    eprintln!("[RedisSync] Failed to remove all subscriptions: {}", e);
+                }
+            });
+        }
     }
     
     /// Get all subscriptions for a subscriber

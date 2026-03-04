@@ -15,7 +15,10 @@ use ultra_logger::UltraLogger;
 use protocol::broker::messages::publish_request::Payload;
 
 pub mod routing;
+pub mod redis_state;
 pub use routing::{IntelligentMessageRouter, TopicSubscriptionManager, RoutingRule, RoutingPattern, MessageFilter};
+#[cfg(feature = "redis-sync")]
+pub use redis_state::{RedisStateSync, RedisStateConfig, PersistedSubscription};
 
 // Topic manager logger - initialized lazily, works without async runtime
 static TOPIC_LOGGER: OnceLock<UltraLogger> = OnceLock::new();

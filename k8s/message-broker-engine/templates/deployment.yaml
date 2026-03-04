@@ -75,6 +75,16 @@ spec:
             - name: USE_ELASTICSEARCH_LOGGING
               value: "false"
             {{- end }}
+            # Redis Cloud state sync for multi-replica subscription sharing
+            {{- if .Values.redis.enabled }}
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.existingSecret | default (printf "%s-redis" (include "message-broker-engine.fullname" .)) }}
+                  key: redis-url
+            - name: REDIS_STATE_SYNC
+              value: "true"
+            {{- end }}
             {{- if .Values.config.security.enable_tls }}
             - name: TLS_CERT_PATH
               value: {{ .Values.config.security.cert_path }}

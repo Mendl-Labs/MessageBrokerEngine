@@ -23,7 +23,13 @@ tokio = { version = "1.38.0", features = ["full"] }
 regex = "1.10"
 wildmatch = "2.3"
 fxhash = "0.2"
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"], optional = true }
+uuid = { version = "1.0", features = ["v4"], optional = true }
 ultra-logger = { path = "../../LoggingEngine/ultra-logger" }
+
+[features]
+default = []
+redis-sync = ["redis", "uuid"]
 
 [dev-dependencies]
 tokio-test = "0.4"

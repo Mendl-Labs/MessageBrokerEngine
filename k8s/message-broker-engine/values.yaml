@@ -48,9 +48,9 @@ securityContext:
       - NET_BIND_SERVICE
 
 # Deployment configuration
-# TEMPORARILY SET TO 1: Broker subscriptions are not shared across replicas
-# TODO: Implement Redis/shared state for multi-replica support
-replicaCount: 1
+# Redis Cloud state sync enables multi-replica support
+# Set REDIS_URL env var to connect to Redis Cloud instance
+replicaCount: 2
 strategy:
   type: RollingUpdate
   rollingUpdate:
@@ -202,10 +202,9 @@ affinity:
           topologyKey: kubernetes.io/hostname
 
 # Horizontal Pod Autoscaler
-# TEMPORARILY DISABLED: Broker subscriptions are not shared across replicas
-# TODO: Implement Redis/shared state for multi-replica support
+# Redis Cloud state sync enables subscription sharing across replicas
 autoscaling:
-  enabled: false
+  enabled: true
   minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
@@ -244,3 +243,91 @@ priorityClassName: ""
 
 # Termination grace period
 terminationGracePeriodSeconds: 30
+
+# Redis Cloud for subscription state sync (multi-replica support)
+redis:
+  enabled: true
+  # Override with actual Redis Cloud URL in environment-specific values
+  # Format: redis://user:password@host:port
+  existingSecret: "message-broker-redis-secret"
+  # Subscription TTL in seconds (entries auto-expire for cleanup)
+  subscriptionTtl: 3600
+  # Heartbeat interval for instance liveness detection
+  heartbeatIntervalSecs: 10
+
+# =============================================================================
+# Per-Tenant Resource Isolation
+# =============================================================================
+# Deploy per-tenant with: helm install tenant-<id> . --namespace tenant-<id>
+#   --set tenantResources.enabled=true --set tenantResources.tenantId=<uuid>
+#   --set tenantResources.tier=<free|starter|professional|enterprise>
+
+tenantResources:
+  enabled: false
+  tenantId: ""
+  tier: "free"
+
+  profiles:
+    free:
+      maxCpu: "500m"
+      maxMemory: "1Gi"
+      maxCpuLimit: "1"
+      maxMemoryLimit: "2Gi"
+      maxPods: "2"
+      maxServices: "2"
+      defaultContainerCpuRequest: "100m"
+      defaultContainerCpuLimit: "500m"
+      defaultContainerMemoryRequest: "128Mi"
+      defaultContainerMemoryLimit: "512Mi"
+      maxContainerCpu: "500m"
+      maxContainerMemory: "1Gi"
+      maxPodCpu: "500m"
+      maxPodMemory: "1Gi"
+
+    starter:
+      maxCpu: "1"
+      maxMemory: "4Gi"
+      maxCpuLimit: "2"
+      maxMemoryLimit: "8Gi"
+      maxPods: "4"
+      maxServices: "3"
+      defaultContainerCpuRequest: "250m"
+      defaultContainerCpuLimit: "1000m"
+      defaultContainerMemoryRequest: "256Mi"
+      defaultContainerMemoryLimit: "1Gi"
+      maxContainerCpu: "1000m"
+      maxContainerMemory: "2Gi"
+      maxPodCpu: "1000m"
+      maxPodMemory: "2Gi"
+
+    professional:
+      maxCpu: "4"
+      maxMemory: "16Gi"
+      maxCpuLimit: "8"
+      maxMemoryLimit: "32Gi"
+      maxPods: "8"
+      maxServices: "5"
+      defaultContainerCpuRequest: "500m"
+      defaultContainerCpuLimit: "2000m"
+      defaultContainerMemoryRequest: "512Mi"
+      defaultContainerMemoryLimit: "2Gi"
+      maxContainerCpu: "2000m"
+      maxContainerMemory: "4Gi"
+      maxPodCpu: "2000m"
+      maxPodMemory: "4Gi"
+
+    enterprise:
+      maxCpu: "16"
+      maxMemory: "64Gi"
+      maxCpuLimit: "32"
+      maxMemoryLimit: "128Gi"
+      maxPods: "20"
+      maxServices: "10"
+      defaultContainerCpuRequest: "1000m"
+      defaultContainerCpuLimit: "4000m"
+      defaultContainerMemoryRequest: "1Gi"
+      defaultContainerMemoryLimit: "4Gi"
+      maxContainerCpu: "4000m"
+      maxContainerMemory: "16Gi"
+      maxPodCpu: "4000m"
+      maxPodMemory: "16Gi"
