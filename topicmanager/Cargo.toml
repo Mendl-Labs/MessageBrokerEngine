@@ -23,7 +23,7 @@ tokio = { version = "1.38.0", features = ["full"] }
 regex = "1.10"
 wildmatch = "2.3"
 fxhash = "0.2"
-ultra-logger = { path = "../../LoggingEngine/ultra-logger" }
+ultra-logger = { path = "../logging-engine/ultra-logger" }
 
 [dev-dependencies]
 tokio-test = "0.4"

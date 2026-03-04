@@ -139,7 +139,7 @@ pub struct SystemStatus {
 pub struct PublishRequest {
     #[prost(string, tag = "1")]
     pub topic: String,
-    #[prost(oneof = "publish_request::Payload", tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14")]
+    #[prost(oneof = "publish_request::Payload", tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30")]
     pub payload: Option<publish_request::Payload>,
 }
 
@@ -175,6 +175,41 @@ pub mod publish_request {
         StrategyDeploymentAck(StrategyDeploymentAck),
         #[prost(message, tag = "14")]
         DeploymentStatusResponse(DeploymentStatusResponse),
+        // Distributed backtesting events
+        #[prost(message, tag = "15")]
+        BacktestChunk(BacktestChunk),
+        #[prost(message, tag = "16")]
+        BacktestChunkResult(BacktestChunkResult),
+        #[prost(message, tag = "17")]
+        BacktestProgress(BacktestProgress),
+        #[prost(message, tag = "18")]
+        BacktestCancelRequest(BacktestCancelRequest),
+        #[prost(message, tag = "19")]
+        BacktestAggregatedResult(BacktestAggregatedResult),
+        // Distributed genetic algorithm (GA) optimization events
+        #[prost(message, tag = "20")]
+        ChromosomeEvalRequest(ChromosomeEvalRequest),
+        #[prost(message, tag = "21")]
+        ChromosomeEvalResult(ChromosomeEvalResult),
+        #[prost(message, tag = "22")]
+        DataBroadcastRequest(DataBroadcastRequest),
+        #[prost(message, tag = "23")]
+        DataCacheAck(DataCacheAck),
+        #[prost(message, tag = "24")]
+        DataLoadRequest(DataLoadRequest),
+        #[prost(message, tag = "25")]
+        DeploymentStatusRequest(DeploymentStatusRequest),
+        // Market data subscription events
+        #[prost(message, tag = "26")]
+        MarketDataSubscribe(MarketDataSubscribe),
+        #[prost(message, tag = "27")]
+        MarketDataUnsubscribe(MarketDataUnsubscribe),
+        #[prost(message, tag = "28")]
+        MarketDataSubscriptionAck(MarketDataSubscriptionAck),
+        #[prost(message, tag = "29")]
+        MarketDataStatusRequest(MarketDataStatusRequest),
+        #[prost(message, tag = "30")]
+        MarketDataStatusResponse(MarketDataStatusResponse),
     }
 }
 
