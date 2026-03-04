@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package broker.messages;
 
+// ── Core trading messages ────────────────────────────────────────────────────
+
 message Order {
     string unique_id = 1;
     string symbol = 2;
@@ -19,50 +21,450 @@ message Orders {
 message Trade {
     string symbol = 1;
     string exchange = 2;
-    string side = 3;
-    float price = 4;
+    float price = 3;
+    float quantity = 4;
     float qty = 5;
-    string ord_type = 6;
-    uint64 trade_id = 7;
-    string timestamp = 8;
+    string side = 6;
+    int64 timestamp = 7;
+    string trade_id = 8;
+    string ord_type = 9;
 }
 
 message Trades {
     repeated Trade trades = 1;
 }
 
-message Wallet {
+message Quote {
     string symbol = 1;
-    float balance = 2;
+    string exchange = 2;
+    float bid_price = 3;
+    float ask_price = 4;
+    float bid_quantity = 5;
+    float ask_quantity = 6;
+    int64 timestamp = 7;
+}
+
+message MarketData {
+    Trade trade = 1;
+    Quote quote = 2;
+}
+
+message ExecutionReport {
+    string order_id = 1;
+    string execution_id = 2;
+    string symbol = 3;
+    string side = 4;
+    float executed_price = 5;
+    float executed_quantity = 6;
+    float remaining_quantity = 7;
+    string status = 8;
+    int64 timestamp = 9;
+}
+
+message RiskAlert {
+    string alert_id = 1;
+    string alert_type = 2;
+    string message = 3;
+    string severity = 4;
+    string affected_symbol = 5;
+    int64 timestamp = 6;
+}
+
+message SystemStatus {
+    string component = 1;
+    string status = 2;
+    string message = 3;
+    int64 timestamp = 4;
+    float cpu_usage = 5;
+    float memory_usage = 6;
+    int32 active_connections = 7;
+}
+
+message Wallet {
+    string user_id = 1;
+    string symbol = 2;
+    float balance = 3;
+    string currency = 4;
+    int64 last_updated = 5;
 }
 
 message Wallets {
+    repeated Wallet wallets = 1;
+}
+
+message WalletData {
     string exchange = 1;
     repeated Wallet wallets = 2;
 }
 
-message MarketMessage {
+message PortfolioMessage {
+    string portfolio_id = 1;
     oneof payload {
-        Trades trades_payload = 1;
-        Orders orders_payload = 2;
+        Wallet position = 2;
+        Wallet balance = 3;
+        ExecutionReport update = 4;
+        RiskAlert risk = 5;
+        WalletData wallets_payload = 6;
     }
 }
 
-message PortfolioMessage {
+message MarketMessage {
+    string market_id = 1;
     oneof payload {
-        Wallets wallets_payload = 1;
+        Trade trade = 2;
+        Quote quote = 3;
+        MarketData market_data = 4;
+        Orders orders_payload = 5;
+        Trades trades_payload = 6;
     }
 }
+
+// ── Strategy deployment messages ─────────────────────────────────────────────
+
+message StrategyDeployment {
+    string strategy_id = 1;
+    string instance_id = 2;
+    string tenant_id = 3;
+    string strategy_type = 4;
+    string strategy_name = 5;
+    string version = 6;
+    bytes parameters = 7;
+    double initial_capital = 8;
+    repeated string target_exchanges = 9;
+    repeated string symbols = 10;
+    string approved_by = 11;
+    string approved_at = 12;
+    bytes performance_summary = 13;
+    bytes risk_metrics = 14;
+    bool admin_approved = 15;
+    int64 timestamp = 16;
+}
+
+message StrategyDeactivation {
+    string strategy_id = 1;
+    string instance_id = 2;
+    string tenant_id = 3;
+    string reason = 4;
+    string deactivated_by = 5;
+    bool close_positions = 6;
+    bool cancel_orders = 7;
+    int64 timestamp = 8;
+}
+
+message StrategyDeploymentAck {
+    string strategy_id = 1;
+    string instance_id = 2;
+    string signal_engine_node = 3;
+    bool success = 4;
+    string error_message = 5;
+    int64 loaded_at = 6;
+    repeated string active_exchanges = 7;
+}
+
+message DeploymentStatusRequest {
+    string tenant_id = 1;
+    string request_id = 2;
+}
+
+message ActiveStrategyInfo {
+    string strategy_id = 1;
+    string instance_id = 2;
+    string tenant_id = 3;
+    string strategy_type = 4;
+    string strategy_name = 5;
+    repeated string active_exchanges = 6;
+    repeated string symbols = 7;
+    double unrealized_pnl = 8;
+    double realized_pnl = 9;
+    int32 open_positions = 10;
+    int32 pending_orders = 11;
+    int64 deployed_at = 12;
+    int64 total_trades = 13;
+}
+
+message DeploymentStatusResponse {
+    string request_id = 1;
+    string signal_engine_node = 2;
+    repeated ActiveStrategyInfo active_strategies = 3;
+    int64 total_memory_bytes = 4;
+    float cpu_utilization = 5;
+}
+
+// ── Distributed backtesting messages ─────────────────────────────────────────
+
+message BacktestChunk {
+    string job_id = 1;
+    int32 chunk_id = 2;
+    int32 total_chunks = 3;
+    string start_time = 4;
+    string end_time = 5;
+    string symbol = 6;
+    string exchange = 7;
+    bytes strategy_config = 8;
+    double initial_capital = 9;
+    double starting_position = 10;
+    double starting_cash = 11;
+    bool is_monte_carlo = 12;
+    int32 monte_carlo_run = 13;
+    int32 priority = 14;
+}
+
+message BacktestChunkResult {
+    string job_id = 1;
+    int32 chunk_id = 2;
+    string worker_id = 3;
+    bool success = 4;
+    string error_message = 5;
+    double net_pnl = 6;
+    double gross_profit = 7;
+    double gross_loss = 8;
+    int32 num_trades = 9;
+    int32 winning_trades = 10;
+    double max_drawdown = 11;
+    double transaction_costs = 12;
+    double ending_position = 13;
+    double ending_cash = 14;
+    bytes daily_returns = 15;
+    int64 events_processed = 16;
+    int64 processing_duration_ms = 17;
+    int64 peak_memory_bytes = 18;
+    int32 monte_carlo_run = 19;
+}
+
+message BacktestProgress {
+    string job_id = 1;
+    int32 chunks_completed = 2;
+    int32 total_chunks = 3;
+    float percent_complete = 4;
+    string phase = 5;
+    int64 estimated_remaining_secs = 6;
+    double running_pnl = 7;
+    int32 running_trades = 8;
+}
+
+message BacktestCancelRequest {
+    string job_id = 1;
+    string reason = 2;
+}
+
+message BacktestAggregatedResult {
+    string job_id = 1;
+    double total_net_pnl = 2;
+    double total_gross_profit = 3;
+    double total_gross_loss = 4;
+    int32 total_trades = 5;
+    int32 total_winning_trades = 6;
+    float win_rate = 7;
+    float profit_factor = 8;
+    double max_drawdown = 9;
+    float sharpe_ratio = 10;
+    float sortino_ratio = 11;
+    float calmar_ratio = 12;
+    double total_transaction_costs = 13;
+    int64 total_events = 14;
+    int64 total_processing_time_ms = 15;
+    int32 num_workers = 16;
+    int32 chunks_processed = 17;
+    int32 chunks_failed = 18;
+}
+
+// ── Distributed genetic algorithm (GA) optimization messages ─────────────────
+
+message AssetInfo {
+    string symbol = 1;
+    string exchange = 2;
+    string strategy = 3;
+    double weight = 4;
+}
+
+message ChromosomeEvalRequest {
+    string job_id = 1;
+    int32 generation = 2;
+    int32 chromosome_id = 3;
+    int32 total_chromosomes = 4;
+    bytes chromosome_params = 5;
+    string symbol = 6;
+    string exchange = 7;
+    double initial_capital = 8;
+    string data_cache_key = 9;
+    bool is_final_evaluation = 10;
+    bool run_monte_carlo = 11;
+    bool run_walk_forward = 12;
+    int64 train_end_idx = 13;
+    int64 test_end_idx = 14;
+    int64 total_ticks = 15;
+    bytes fitness_weights_json = 16;
+    double initial_30d_volume = 17;
+    double initial_inventory_pct = 18;
+    uint32 monte_carlo_runs = 19;
+    string strategy_type = 20;
+    repeated AssetInfo assets = 21;
+}
+
+message ChromosomeEvalResult {
+    string job_id = 1;
+    int32 generation = 2;
+    int32 chromosome_id = 3;
+    string worker_id = 4;
+    bool success = 5;
+    string error_message = 6;
+    double fitness = 7;
+    double net_pnl = 8;
+    double sharpe_ratio = 9;
+    int32 num_trades = 10;
+    double max_drawdown = 11;
+    bytes equity_curve = 12;
+    int64 processing_duration_ms = 13;
+    double win_rate = 14;
+    double profit_factor = 15;
+    int32 closed_trades = 16;
+    int32 total_orders = 17;
+    double starting_capital = 18;
+    double ending_capital = 19;
+    double total_return_pct = 20;
+    bytes monte_carlo_results = 21;
+    bytes walk_forward_results = 22;
+    bytes closed_trades_data = 23;
+    bool is_final_evaluation = 24;
+    string statistical_significance = 25;
+    double best_trade_pnl = 26;
+    double worst_trade_pnl = 27;
+    double avg_trade_pnl = 28;
+    double avg_time_in_trade_ms = 29;
+    double total_volume = 30;
+    double total_fees = 31;
+    bytes inventory_metrics = 32;
+    bytes execution_metrics = 33;
+    double avg_inventory = 34;
+    double max_inventory = 35;
+    int32 zero_crossings = 36;
+    double avg_fill_rate = 37;
+    double avg_queue_position = 38;
+    double partial_fill_pct = 39;
+    double avg_latency_ms = 40;
+}
+
+message DataBroadcastRequest {
+    string cache_key = 1;
+    string symbol = 2;
+    string exchange = 3;
+    int64 data_point_count = 4;
+    bytes compressed_data = 5;
+    string compression = 6;
+    int64 ttl_seconds = 7;
+}
+
+message DataCacheAck {
+    string cache_key = 1;
+    string worker_id = 2;
+    bool success = 3;
+    int32 capacity = 4;
+    int64 tick_count = 5;
+}
+
+message DataLoadRequest {
+    string cache_key = 1;
+    repeated string symbols = 2;
+    string exchange = 3;
+    string start_time = 4;
+    string end_time = 5;
+    int64 ttl_seconds = 6;
+    double initial_capital = 7;
+    string job_id = 8;
+    repeated AssetInfo assets = 9;
+}
+
+// ── Market data subscription messages ────────────────────────────────────────
+
+message MarketDataSubscribe {
+    string subscription_id = 1;
+    string tenant_id = 2;
+    string strategy_instance_id = 3;
+    string exchange = 4;
+    repeated string symbols = 5;
+    repeated string data_types = 6;
+    int32 orderbook_depth = 7;
+    int64 timestamp = 8;
+}
+
+message MarketDataUnsubscribe {
+    string subscription_id = 1;
+    string strategy_instance_id = 2;
+    string exchange = 3;
+    repeated string symbols = 4;
+    string reason = 5;
+    int64 timestamp = 6;
+}
+
+message MarketDataSubscriptionAck {
+    string subscription_id = 1;
+    bool success = 2;
+    string error_message = 3;
+    string data_engine_node = 4;
+    repeated string data_topics = 5;
+    int64 timestamp = 6;
+}
+
+message MarketDataStatusRequest {
+    string request_id = 1;
+    string exchange_filter = 2;
+}
+
+message ExchangeConnectionInfo {
+    string exchange = 1;
+    bool connected = 2;
+    repeated string symbols = 3;
+    repeated string data_types = 4;
+    int32 subscriber_count = 5;
+    int64 connected_since = 6;
+    int64 messages_processed = 7;
+}
+
+message MarketDataStatusResponse {
+    string request_id = 1;
+    string data_engine_node = 2;
+    repeated ExchangeConnectionInfo active_connections = 3;
+    int32 total_subscriptions = 4;
+}
+
+// ── Subscribe / Publish envelope ─────────────────────────────────────────────
 
 message SubscribeRequest {
     repeated string topics = 1;
 }
 
 message PublishRequest {
-    repeated string topics = 1;
+    string topic = 1;
     oneof payload {
-        MarketMessage market_payload = 2;
-        PortfolioMessage portfolio_payload = 3;
+        Order order = 2;
+        Trade trade = 3;
+        Quote quote = 4;
+        ExecutionReport execution_report = 5;
+        RiskAlert risk_alert = 6;
+        SystemStatus system_status = 7;
+        bytes raw_data = 8;
+        PortfolioMessage portfolio_payload = 9;
+        MarketMessage market_payload = 10;
+        StrategyDeployment strategy_deployment = 11;
+        StrategyDeactivation strategy_deactivation = 12;
+        StrategyDeploymentAck strategy_deployment_ack = 13;
+        DeploymentStatusResponse deployment_status_response = 14;
+        BacktestChunk backtest_chunk = 15;
+        BacktestChunkResult backtest_chunk_result = 16;
+        BacktestProgress backtest_progress = 17;
+        BacktestCancelRequest backtest_cancel_request = 18;
+        BacktestAggregatedResult backtest_aggregated_result = 19;
+        ChromosomeEvalRequest chromosome_eval_request = 20;
+        ChromosomeEvalResult chromosome_eval_result = 21;
+        DataBroadcastRequest data_broadcast_request = 22;
+        DataCacheAck data_cache_ack = 23;
+        DataLoadRequest data_load_request = 24;
+        DeploymentStatusRequest deployment_status_request = 25;
+        MarketDataSubscribe market_data_subscribe = 26;
+        MarketDataUnsubscribe market_data_unsubscribe = 27;
+        MarketDataSubscriptionAck market_data_subscription_ack = 28;
+        MarketDataStatusRequest market_data_status_request = 29;
+        MarketDataStatusResponse market_data_status_response = 30;
     }
 }
 
@@ -72,3 +474,4 @@ message BrokerMessage {
         PublishRequest publish_request = 2;
     }
 }
+
