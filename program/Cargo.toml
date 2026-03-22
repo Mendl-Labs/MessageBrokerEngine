@@ -15,7 +15,7 @@ publisher = { path = "../publisher" }
 tokio = { version = "1.38.0", features = ["full", "rt-multi-thread"] }
 
 # Ultra-Logger for high-performance logging
-ultra-logger = { path = "../logging-engine/ultra-logger" }
+ultra-logger = { path = "../../LoggingEngine/ultra-logger" }
 once_cell = "1.0"
 
 # Ultra-Fast Production Optimizations
