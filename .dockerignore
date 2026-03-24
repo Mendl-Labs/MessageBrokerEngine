@@ -18,7 +18,6 @@
 **/*.*proj.user
 **/*.dbmdl
 **/*.jfm
-**/charts
 **/docker-compose*
 **/compose.y*ml
 **/Dockerfile*
@@ -26,7 +25,7 @@
 **/npm-debug.log
 **/secrets.dev.yaml
 **/values.dev.yaml
+**/target
 /bin
-/target
 LICENSE
 README.md
