@@ -3,7 +3,7 @@
 # Build context MUST be parent directory containing: MessageBrokerEngine/, LoggingEngine/
 # Build: docker build -f MessageBrokerEngine/Dockerfile -t messagebroker-engine:latest .
 
-ARG RUST_VERSION=1.83.0
+ARG RUST_VERSION=1.85.0
 ARG APP_NAME=program
 
 # Cache-busting args: when these change, Docker invalidates the cache for subsequent layers
@@ -39,7 +39,9 @@ COPY MessageBrokerEngine/ ./MessageBrokerEngine/
 # Build from MessageBrokerEngine directory
 WORKDIR /app/MessageBrokerEngine
 
-RUN cargo build --locked --release && \
+ENV RUSTFLAGS="-C target-cpu=x86-64-v3 -C opt-level=3 -C codegen-units=1 -C panic=abort"
+
+RUN cargo build --release && \
     cp target/release/$APP_NAME /bin/server
 
 ################################################################################
