@@ -1,66 +1,78 @@
-# Production environment overrides
-replicaCount: 5
+# Production environment overrides — Hetzner k3s single-node
+replicaCount: 1
+
+image:
+  repository: ghcr.io/nwagbara-group-llc/messagebroker-engine
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: ghcr-secret
 
 resources:
   requests:
-    cpu: 1000m
-    memory: 1Gi
+    cpu: 500m
+    memory: 512Mi
   limits:
-    cpu: 4000m
-    memory: 4Gi
+    cpu: 2000m
+    memory: 2Gi
 
 config:
   broker:
-    max_connections: 50000
-    buffer_size: 131072
-    
+    port: 8080
+    max_connections: 10000
+    buffer_size: 65536
+    timeout_seconds: 30
+
   performance:
-    thread_pool_size: 16
-    message_queue_size: 500000
-    cache_size: 5000
-    
+    thread_pool_size: 4
+    message_queue_size: 100000
+    cache_size: 1000
+    enable_metrics: true
+
   logging:
     level: "INFO"
-    enable_file_logging: true
-    
+    format: "json"
+    enable_file_logging: false
+
   security:
-    enable_tls: true
+    enable_tls: false
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+  metricsPort: 9090
+  tcpPort: 8081
 
 persistence:
   enabled: true
-  size: 50Gi
-  storageClass: "premium-ssd"
+  size: 10Gi
+  storageClass: "local-path"
   logs:
-    enabled: true
-    size: 20Gi
-    storageClass: "premium-ssd"
+    enabled: false
+
+# Disable Elasticsearch logging (optional — will be empty string if not in Key Vault)
+secrets:
+  existingSecret: "messagebroker-secrets"
+  elasticsearch:
+    enabled: false
+
+# No Redis state sync needed for single replica
+redis:
+  enabled: false
 
 autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 20
-  targetCPUUtilizationPercentage: 60
-  targetMemoryUtilizationPercentage: 70
+  enabled: false
 
 podDisruptionBudget:
-  enabled: true
-  minAvailable: 2
+  enabled: false
 
 serviceMonitor:
-  enabled: true
-  
+  enabled: false
+
 networkPolicy:
-  enabled: true
+  enabled: false
 
-affinity:
-  podAntiAffinity:
-    requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchExpressions:
-            - key: app.kubernetes.io/name
-              operator: In
-              values:
-                - message-broker-engine
-        topologyKey: kubernetes.io/hostname
+affinity: {}
 
-priorityClassName: "high-priority"
+priorityClassName: ""

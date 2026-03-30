@@ -1,5 +1,5 @@
 # MessageBrokerEngine CI/CD Pipeline
-# Deploys to self-hosted Kubernetes cluster using GHCR for container images
+# Builds on ubuntu-latest, deploys to k3s on Hetzner via GHCR
 
 name: MessageBrokerEngine CI/CD
 
@@ -28,15 +28,15 @@ env:
   IMAGE_NAME: ghcr.io/nwagbara-group-llc/messagebroker-engine
   NAMESPACE: messagebroker
   HELM_CHART_PATH: k8s/message-broker-engine
+  DOCKER_BUILDKIT: 1
 
 jobs:
   validate:
     name: Validate & Test
-    runs-on: [self-hosted, windows, x64]
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     outputs:
       tests-passed: ${{ steps.test-result.outputs.passed || steps.skip-test-result.outputs.passed }}
-      skip-tests: ${{ steps.check-skip.outputs.skip }}
     steps:
       - name: Checkout MessageBrokerEngine
         uses: actions/checkout@v4
@@ -50,28 +50,12 @@ jobs:
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           path: LoggingEngine
 
-      - name: Verify Rust
-        shell: powershell
-        run: |
-          Write-Host "Checking Rust installation..."
-          rustc --version
-          cargo --version
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.85.0
 
-      - name: Check for Skip Tests Flag
-        id: check-skip
-        shell: powershell
-        run: |
-          cd MessageBrokerEngine
-          $commitMsg = git log -1 --pretty=%B
-          if ($commitMsg -match '\[skip-tests\]') {
-            Write-Host "[SKIP] [skip-tests] flag detected in commit message"
-            echo "skip=true" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "Running full validation with tests"
-            echo "skip=false" >> $env:GITHUB_OUTPUT
-          }
-
-      - name: Cache Cargo Registry
+      - name: Cache Cargo
         uses: actions/cache@v4
         with:
           path: |
@@ -79,65 +63,61 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+            MessageBrokerEngine/target/
+          key: ${{ runner.os }}-cargo-msgbroker-${{ hashFiles('MessageBrokerEngine/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-msgbroker-
+
+      - name: Check for Skip Tests Flag
+        id: check-skip
+        run: |
+          cd MessageBrokerEngine
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if echo "$COMMIT_MSG" | grep -q '\[skip-tests\]'; then
+            echo "[SKIP] skip-tests flag detected"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Running full validation with tests"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Fast Check
-        shell: powershell
         run: |
-          Write-Host "Running fast cargo check..."
           cd MessageBrokerEngine
-          cargo check --workspace --jobs 10
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "[FAIL] Cargo check failed"
-            exit 1
-          }
-          Write-Host "[OK] Fast check passed!"
+          cargo check --workspace
+          echo "[OK] Fast check passed!"
 
       - name: Build Workspace
-        shell: powershell
         run: |
-          Write-Host "Building MessageBrokerEngine workspace..."
           cd MessageBrokerEngine
-          cargo build --workspace --jobs 10
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "[FAIL] Build failed!"
-            exit 1
-          }
-          Write-Host "[OK] Build passed!"
+          cargo build --workspace
+          echo "[OK] Build passed!"
 
       - name: Run Tests
         if: steps.check-skip.outputs.skip != 'true'
         id: test-result
-        shell: powershell
         run: |
-          Write-Host "Running tests..."
           cd MessageBrokerEngine
-          cargo test --workspace --jobs 10
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "[OK] Tests passed!"
-            echo "passed=true" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "[FAIL] Tests failed!"
-            echo "passed=false" >> $env:GITHUB_OUTPUT
+          if cargo test --workspace; then
+            echo "[OK] Tests passed!"
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "[FAIL] Tests failed!"
+            echo "passed=false" >> "$GITHUB_OUTPUT"
             exit 1
-          }
+          fi
 
       - name: Skip Tests
         if: steps.check-skip.outputs.skip == 'true'
         id: skip-test-result
-        shell: powershell
-        run: |
-          Write-Host "[SKIP] Tests skipped"
-          echo "passed=true" >> $env:GITHUB_OUTPUT
+        run: echo "passed=true" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build & Push
-    runs-on: [self-hosted, windows, x64]
+    runs-on: ubuntu-latest
     needs: validate
     if: needs.validate.outputs.tests-passed == 'true' || github.event.inputs.skip_tests == 'true'
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout MessageBrokerEngine
         uses: actions/checkout@v4
@@ -151,6 +131,7 @@ jobs:
           repository: Nwagbara-Group-LLC/LoggingEngine
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           path: LoggingEngine
+          ref: main
           fetch-depth: 0
 
       - name: Login to GHCR
@@ -161,76 +142,99 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Push Image
-        shell: powershell
         run: |
-          Write-Host "Building Docker image..."
-          $startTime = Get-Date
-          
-          $requiredDeps = @("LoggingEngine")
-          foreach ($dep in $requiredDeps) {
-            if (Test-Path $dep) {
-              Write-Host "[OK] Dependency found: $dep"
-            } else {
-              Write-Host "[ERROR] Missing: $dep"
-              exit 1
-            }
-          }
-          
-          # Get dependency commit SHAs for cache busting
-          $loggingSha = (git -C LoggingEngine rev-parse --short HEAD)
-          Write-Host "[INFO] Dependency versions: LoggingEngine=$loggingSha"
-          
-          $shortSha = "${{ github.sha }}".Substring(0, 7)
-          Write-Host "[INFO] Building with immutable tag: $shortSha"
-          
-          # Build without --platform flag (Docker Desktop handles Linux container builds)
-          docker build --tag ${{ env.IMAGE_NAME }}:$shortSha --file MessageBrokerEngine/Dockerfile --build-arg LOGGING_ENGINE_SHA=$loggingSha --progress=plain .
-          
-          if ($LASTEXITCODE -ne 0) {
-            throw "Docker build failed"
-          }
-          
-          $buildDuration = (Get-Date) - $startTime
-          Write-Host "[OK] Build completed in $([math]::Round($buildDuration.TotalMinutes, 1)) minutes"
-          
-          Write-Host "[PUSH] Pushing image..."
-          docker push ${{ env.IMAGE_NAME }}:$shortSha
-          Write-Host "[OK] Pushed image with immutable tag: $shortSha"
+          set -e
+          echo "Building Docker image..."
+
+          if [ -d "LoggingEngine" ]; then
+            echo "[OK] Dependency found: LoggingEngine"
+          else
+            echo "[ERROR] Missing: LoggingEngine"
+            exit 1
+          fi
+
+          cat > .dockerignore <<'IGNORE'
+          **/.git/
+          **/.gitignore
+          **/.github/
+          **/target/
+          **/.vscode/
+          **/.idea/
+          **/*.swp
+          **/.DS_Store
+          **/.env
+          **/*.md
+          **/LICENSE
+          **/Dockerfile
+          **/.dockerignore
+          **/docker-compose.yml
+          **/compose.yaml
+          MessageBrokerEngine/k8s/
+          **/.cargo/
+          **/Makefile
+          IGNORE
+
+          LOGGING_SHA=$(git -C LoggingEngine rev-parse --short HEAD)
+          echo "[INFO] Dependency versions: LoggingEngine=$LOGGING_SHA"
+
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          echo "[INFO] Building with immutable tag: $SHORT_SHA"
+
+          docker build \
+            --platform linux/amd64 \
+            --tag ${{ env.IMAGE_NAME }}:$SHORT_SHA \
+            --file MessageBrokerEngine/Dockerfile \
+            --build-arg LOGGING_ENGINE_SHA=$LOGGING_SHA \
+            --build-arg RUST_VERSION=1.85.0 \
+            --progress=plain \
+            .
+
+          echo "[PUSH] Pushing image..."
+          docker push ${{ env.IMAGE_NAME }}:$SHORT_SHA
+          docker tag ${{ env.IMAGE_NAME }}:$SHORT_SHA ${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.IMAGE_NAME }}:latest
+          echo "[OK] Pushed image with tags: $SHORT_SHA, latest"
 
       - name: Security Scan
-        shell: powershell
         continue-on-error: true
         run: |
-          $shortSha = "${{ github.sha }}".Substring(0, 7)
-          Write-Host "[SCAN] Running security scan with Trivy..."
-          if (-not (Test-Path "trivy.exe")) {
-            Write-Host "Installing Trivy..."
-            Invoke-WebRequest -Uri "https://github.com/aquasecurity/trivy/releases/download/v0.48.3/trivy_0.48.3_windows-64bit.zip" -OutFile "trivy.zip"
-            Expand-Archive trivy.zip -Force
-            Move-Item trivy/trivy.exe . -Force
-            Remove-Item trivy.zip, trivy -Recurse -Force
-          }
-          .\trivy.exe image --severity HIGH,CRITICAL --exit-code 0 --format table ${{ env.IMAGE_NAME }}:$shortSha
-          Write-Host "[OK] Security scan complete"
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          echo "[SCAN] Running security scan with Trivy..."
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy image --severity HIGH,CRITICAL --exit-code 0 --format table ${{ env.IMAGE_NAME }}:$SHORT_SHA
+          echo "[OK] Security scan complete"
+
+      - name: Validate Image
+        run: |
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          echo "Validating image..."
+          docker pull ${{ env.IMAGE_NAME }}:$SHORT_SHA
+          IMAGE_SIZE=$(docker inspect ${{ env.IMAGE_NAME }}:$SHORT_SHA --format='{{.Size}}' | awk '{printf "%.1f", $1/1048576}')
+          echo "[INFO] Image size: ${IMAGE_SIZE} MB"
+          docker run --rm ${{ env.IMAGE_NAME }}:$SHORT_SHA ls -la /bin/server
+          echo "[OK] Validation complete"
 
       - name: Build Summary
-        shell: powershell
         run: |
-          $shortSha = "${{ github.sha }}".Substring(0, 7)
-          Write-Host ""
-          Write-Host "=========================================="
-          Write-Host "Build Summary"
-          Write-Host "=========================================="
-          Write-Host "Image: ${{ env.IMAGE_NAME }}"
-          Write-Host "Tag: $shortSha"
-          Write-Host "Pull: docker pull ${{ env.IMAGE_NAME }}:$shortSha"
-          Write-Host "=========================================="
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          echo ""
+          echo "=========================================="
+          echo "Build Summary"
+          echo "=========================================="
+          echo "Image: ${{ env.IMAGE_NAME }}"
+          echo "Tag: $SHORT_SHA"
+          echo "Pull: docker pull ${{ env.IMAGE_NAME }}:$SHORT_SHA"
+          echo "=========================================="
 
   deploy:
     name: Deploy to Kubernetes
-    runs-on: [self-hosted, windows, x64]
+    runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.build.result == 'success' && vars.KUBERNETES_ENABLED == 'true'
     timeout-minutes: 20
     steps:
       - name: Checkout MessageBrokerEngine
@@ -238,215 +242,212 @@ jobs:
         with:
           path: MessageBrokerEngine
 
-      - name: Check Kubernetes Connection
-        shell: powershell
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.15.3'
+
+      - name: Configure Kubeconfig
+        shell: bash
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
-          Write-Host "Verifying Kubernetes connection..."
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Check Kubernetes Connection
+        run: |
+          echo "Verifying Kubernetes connection..."
           kubectl cluster-info
           kubectl get nodes
-          Write-Host "[OK] Kubernetes connection verified"
+          echo "[OK] Kubernetes connection verified"
 
       - name: Fetch Secrets from Azure Key Vault
-        shell: powershell
         env:
           AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
           AZURE_KEYVAULT_NAME: ${{ secrets.AZURE_KEYVAULT_NAME }}
         run: |
-          Write-Host "Fetching secrets from Azure Key Vault..."
-          
-          try {
-            if ([string]::IsNullOrWhiteSpace($env:AZURE_CREDENTIALS)) {
-              throw "AZURE_CREDENTIALS secret is empty or not set"
-            }
-            
-            $creds = $env:AZURE_CREDENTIALS | ConvertFrom-Json -ErrorAction Stop
-            
-            if (-not $creds.clientId -or -not $creds.clientSecret -or -not $creds.tenantId) {
-              throw "Invalid Azure credentials format"
-            }
-            
-            Write-Host "[OK] Azure credentials parsed successfully"
-          } catch {
-            Write-Error "Failed to parse Azure credentials: $($_.Exception.Message)"
+          set -euo pipefail
+          echo "Fetching secrets from Azure Key Vault..."
+
+          if [ -z "${AZURE_CREDENTIALS:-}" ]; then
+            echo "::error::AZURE_CREDENTIALS secret is empty or not set"
             exit 1
-          }
-          
-          try {
-            Write-Host "[INFO] Authenticating with Azure..."
-            az login --service-principal --username $creds.clientId --password $creds.clientSecret --tenant $creds.tenantId --output json 2>&1 | Out-Null
-            
-            if ($LASTEXITCODE -ne 0) {
-              throw "Azure CLI login failed"
-            }
-            
-            Write-Host "[OK] Successfully authenticated with Azure"
-          } catch {
-            Write-Error "Azure authentication failed: $_"
+          fi
+
+          CLIENT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r '.clientId')
+          CLIENT_SECRET=$(echo "$AZURE_CREDENTIALS" | jq -r '.clientSecret')
+          TENANT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r '.tenantId')
+
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$TENANT_ID" ]; then
+            echo "::error::Invalid Azure credentials format"
             exit 1
-          }
-          
-          $secretNames = @(
-            "POSTGRES-HOST","POSTGRES-PORT","POSTGRES-USER","POSTGRES-PASSWORD","POSTGRES-DB",
-            "ELASTIC-CLOUD-ENDPOINT","ELASTIC-CLOUD-USERNAME","ELASTIC-CLOUD-PASSWORD"
+          fi
+          echo "[OK] Azure credentials parsed successfully"
+
+          echo "[INFO] Authenticating with Azure..."
+          az login --service-principal \
+            --username "$CLIENT_ID" \
+            --password "$CLIENT_SECRET" \
+            --tenant "$TENANT_ID" \
+            --output none
+          echo "[OK] Successfully authenticated with Azure"
+
+          # Required secrets
+          REQUIRED_SECRETS=(
+            "POSTGRES-HOST" "POSTGRES-PORT" "POSTGRES-USER" "POSTGRES-PASSWORD" "POSTGRES-DB"
           )
-          
-          Write-Host "[INFO] Fetching $($secretNames.Count) secrets..."
-          
-          foreach ($secretName in $secretNames) {
-            try {
-              $envName = $secretName -replace "-", "_"
-              $value = az keyvault secret show --vault-name $env:AZURE_KEYVAULT_NAME --name $secretName --query value -o tsv 2>&1
-              
-              if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($value)) {
-                Write-Error "[FAIL] Failed to fetch secret $secretName"
-                exit 1
-              }
-              
-              $cleanValue = $value.Trim()
-              echo "${envName}=${cleanValue}" >> $env:GITHUB_ENV
-              Write-Host "[OK] Fetched $secretName"
-            } catch {
-              Write-Error "[FAIL] Error fetching $secretName : $_"
+
+          # Optional secrets
+          OPTIONAL_SECRETS=(
+            "ELASTIC-CLOUD-ENDPOINT" "ELASTIC-CLOUD-USERNAME" "ELASTIC-CLOUD-PASSWORD"
+          )
+
+          echo "[INFO] Fetching required secrets..."
+          for SECRET_NAME in "${REQUIRED_SECRETS[@]}"; do
+            ENV_NAME="${SECRET_NAME//-/_}"
+            VALUE=$(az keyvault secret show --vault-name "$AZURE_KEYVAULT_NAME" --name "$SECRET_NAME" --query value -o tsv 2>&1) || {
+              echo "::error::[FAIL] Failed to fetch required secret $SECRET_NAME"
               exit 1
             }
-          }
-          
-          Write-Host "[OK] All secrets fetched successfully"
+            if [ -z "$VALUE" ]; then
+              echo "::error::[FAIL] Empty value for required secret $SECRET_NAME"
+              exit 1
+            fi
+            echo "::add-mask::$VALUE"
+            echo "${ENV_NAME}=${VALUE}" >> "$GITHUB_ENV"
+            echo "[OK] Fetched $SECRET_NAME"
+          done
+
+          echo "[INFO] Fetching optional secrets..."
+          for SECRET_NAME in "${OPTIONAL_SECRETS[@]}"; do
+            ENV_NAME="${SECRET_NAME//-/_}"
+            VALUE=$(az keyvault secret show --vault-name "$AZURE_KEYVAULT_NAME" --name "$SECRET_NAME" --query value -o tsv 2>/dev/null) || VALUE=""
+            if [ -n "$VALUE" ]; then
+              echo "::add-mask::$VALUE"
+              echo "${ENV_NAME}=${VALUE}" >> "$GITHUB_ENV"
+              echo "[OK] Fetched $SECRET_NAME"
+            else
+              echo "${ENV_NAME}=" >> "$GITHUB_ENV"
+              echo "[SKIP] $SECRET_NAME not found in Key Vault (optional)"
+            fi
+          done
+
+          echo "[OK] All secrets fetched successfully"
 
       - name: Deploy to Kubernetes
-        shell: powershell
         run: |
-          Write-Host "Deploying MessageBrokerEngine to Kubernetes..."
-          
+          set -euo pipefail
+          echo "Deploying MessageBrokerEngine to Kubernetes..."
+
           cd MessageBrokerEngine
-          
+
           # Create namespace if it doesn't exist
           kubectl create namespace ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
-          
+
           # Create image pull secret for GHCR
-          Write-Host "[INFO] Creating image pull secret..."
-          kubectl create secret docker-registry ghcr-secret --docker-server=ghcr.io --docker-username=${{ github.actor }} --docker-password=${{ secrets.GITHUB_TOKEN }} --namespace=${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
-          
+          echo "[INFO] Creating image pull secret..."
+          kubectl create secret docker-registry ghcr-secret \
+            --docker-server=ghcr.io \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="${{ secrets.GITHUB_TOKEN }}" \
+            --namespace=${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
           # Build DATABASE_URL
-          $databaseUrl = "postgresql://$($env:POSTGRES_USER):$($env:POSTGRES_PASSWORD)@$($env:POSTGRES_HOST):$($env:POSTGRES_PORT)/$($env:POSTGRES_DB)"
-          
+          DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
+
           # Create Kubernetes secrets
-          Write-Host "[INFO] Creating application secrets in Kubernetes..."
-          kubectl create secret generic messagebroker-secrets --from-literal=database-username="$($env:POSTGRES_USER)" --from-literal=database-password="$($env:POSTGRES_PASSWORD)" --from-literal=database-host="$($env:POSTGRES_HOST)" --from-literal=database-port="$($env:POSTGRES_PORT)" --from-literal=database-name="$($env:POSTGRES_DB)" --from-literal=DATABASE_URL="$databaseUrl" --from-literal=elasticsearch-endpoint="$($env:ELASTIC_CLOUD_ENDPOINT)" --from-literal=elasticsearch-username="$($env:ELASTIC_CLOUD_USERNAME)" --from-literal=elasticsearch-password="$($env:ELASTIC_CLOUD_PASSWORD)" --namespace=${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
-          
-          Write-Host "[OK] Secrets synced to Kubernetes"
-          
-          $imageTag = "${{ github.sha }}".Substring(0, 7)
-          Write-Host "[INFO] Deploying with image tag: $imageTag"
-          
-          # Removed --wait/--atomic to prevent CI timeout - deployments verified separately
-          # Note: Do NOT use --force as it causes PVC replacement errors
-          $helmArgs = @(
-            "--namespace", "${{ env.NAMESPACE }}",
-            "--create-namespace",
-            "--set", "image.repository=${{ env.IMAGE_NAME }}",
-            "--set", "image.tag=$imageTag",
-            "--set", "image.pullPolicy=IfNotPresent",
-            "--set", "imagePullSecrets[0].name=ghcr-secret",
-            "--set", "secrets.existingSecret=messagebroker-secrets",
-            "--set", "config.database.host=$($env:POSTGRES_HOST)",
-            "--set", "config.database.port=$($env:POSTGRES_PORT)",
-            "--set", "config.database.database=$($env:POSTGRES_DB)",
-            "--set", "replicaCount=1",
-            "--timeout", "5m"
-          )
-          
+          echo "[INFO] Creating application secrets in Kubernetes..."
+          kubectl create secret generic messagebroker-secrets \
+            --from-literal=database-username="${POSTGRES_USER}" \
+            --from-literal=database-password="${POSTGRES_PASSWORD}" \
+            --from-literal=database-host="${POSTGRES_HOST}" \
+            --from-literal=database-port="${POSTGRES_PORT}" \
+            --from-literal=database-name="${POSTGRES_DB}" \
+            --from-literal=DATABASE_URL="${DATABASE_URL}" \
+            --from-literal=elasticsearch-endpoint="${ELASTIC_CLOUD_ENDPOINT}" \
+            --from-literal=elasticsearch-username="${ELASTIC_CLOUD_USERNAME}" \
+            --from-literal=elasticsearch-password="${ELASTIC_CLOUD_PASSWORD}" \
+            --namespace=${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          echo "[OK] Secrets synced to Kubernetes"
+
+          IMAGE_TAG="${{ github.sha }}"
+          IMAGE_TAG="${IMAGE_TAG:0:7}"
+          echo "[INFO] Deploying with image tag: $IMAGE_TAG"
+
           # Check for stuck releases
-          Write-Host "[INFO] Checking Helm release status..."
-          $ErrorActionPreference = 'SilentlyContinue'
-          $helmList = helm list -n ${{ env.NAMESPACE }} --all -o json | ConvertFrom-Json
-          $ErrorActionPreference = 'Stop'
-          
-          if ($helmList -and $helmList.status -match "pending") {
-            Write-Host "[WARN] Found stuck release in status: $($helmList.status)"
-            if ($helmList.status -eq "pending-install") {
-              helm uninstall messagebroker-engine -n ${{ env.NAMESPACE }} --wait --timeout 2m
-            } else {
-              helm rollback messagebroker-engine -n ${{ env.NAMESPACE }} --wait --timeout 2m
-            }
-            Start-Sleep -Seconds 5
-          }
-          
-          Write-Host "Deploying with Helm..."
-          helm upgrade --install messagebroker-engine ./${{ env.HELM_CHART_PATH }} @helmArgs
-          
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "[FAIL] Helm upgrade failed!"
-            exit 1
-          }
-          
-          Write-Host "[OK] Helm upgrade completed"
-          
-          # Show deployment status
-          Write-Host "[STATUS] Checking deployed resources..."
-          kubectl get pods -n ${{ env.NAMESPACE }}
-          kubectl get services -n ${{ env.NAMESPACE }}
-          kubectl get deployments -n ${{ env.NAMESPACE }}
+          echo "[INFO] Checking Helm release status..."
+          HELM_JSON=$(helm list -n ${{ env.NAMESPACE }} --all -o json 2>/dev/null || echo "[]")
+          RELEASE_STATUS=$(echo "$HELM_JSON" | jq -r '.[] | select(.name=="messagebroker-engine") | .status' 2>/dev/null || echo "")
+
+          if [[ "$RELEASE_STATUS" == *"pending"* ]]; then
+            echo "[WARN] Found stuck release in status: $RELEASE_STATUS"
+            if [ "$RELEASE_STATUS" = "pending-install" ]; then
+              helm uninstall messagebroker-engine -n ${{ env.NAMESPACE }} --wait --timeout 2m 2>/dev/null || true
+            else
+              helm rollback messagebroker-engine -n ${{ env.NAMESPACE }} --wait --timeout 2m 2>/dev/null || true
+            fi
+            sleep 5
+          elif [ "$RELEASE_STATUS" = "failed" ]; then
+            echo "[WARN] Found failed release, rolling back..."
+            helm rollback messagebroker-engine -n ${{ env.NAMESPACE }} --wait --timeout 2m 2>/dev/null || true
+            sleep 5
+          fi
+
+          echo "Deploying with Helm..."
+          helm upgrade --install messagebroker-engine ./${{ env.HELM_CHART_PATH }} \
+            --namespace ${{ env.NAMESPACE }} \
+            --create-namespace \
+            -f ./${{ env.HELM_CHART_PATH }}/values-prod.yaml \
+            --set "image.repository=${{ env.IMAGE_NAME }}" \
+            --set "image.tag=$IMAGE_TAG" \
+            --set "image.pullPolicy=IfNotPresent" \
+            --set "imagePullSecrets[0].name=ghcr-secret" \
+            --set "secrets.existingSecret=messagebroker-secrets" \
+            --set "config.database.host=${POSTGRES_HOST}" \
+            --set "config.database.port=${POSTGRES_PORT}" \
+            --set "config.database.database=${POSTGRES_DB}" \
+            --timeout 5m
+
+          echo "[OK] Helm deployment successful"
 
       - name: Verify Deployment
-        shell: powershell
         run: |
-          Write-Host "Verifying deployment..."
-          
-          # Brief wait for pods (non-blocking)
-          Write-Host "[INFO] Waiting for pods to stabilize (2 min timeout)..."
-          $ErrorActionPreference = 'SilentlyContinue'
-          $waitResult = kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=message-broker-engine -n ${{ env.NAMESPACE }} --timeout=120s 2>&1
-          $waitExitCode = $LASTEXITCODE
-          $ErrorActionPreference = 'Stop'
-          
-          if ($waitExitCode -eq 0) {
-            Write-Host "[SUCCESS] Pods are ready"
-          } else {
-            Write-Host "[WARN] Some pods may not be ready yet - gathering diagnostics..."
-            Write-Host ""
-            Write-Host "=== Pod Status ==="
-            kubectl get pods -n ${{ env.NAMESPACE }} -o wide
-            Write-Host ""
-            Write-Host "=== Pod Events ==="
-            kubectl get events -n ${{ env.NAMESPACE }} --sort-by='.lastTimestamp' | Select-Object -Last 30
-            Write-Host ""
-            Write-Host "=== Pod Descriptions ==="
-            kubectl describe pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=message-broker-engine | Select-String -Pattern "Status:|Ready:|Warning|Error|Reason:|Message:" | Select-Object -First 30
-            Write-Host ""
-            Write-Host "=== Pod Logs (if available) ==="
-            $pods = kubectl get pods -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=message-broker-engine -o jsonpath='{.items[*].metadata.name}'
-            if ($pods) {
-              foreach ($pod in $pods.Split(' ')) {
-                if ($pod) {
-                  Write-Host "--- Logs for $pod ---"
-                  kubectl logs -n ${{ env.NAMESPACE }} $pod --tail=50 2>&1
-                }
-              }
-            } else {
-              Write-Host "[INFO] No pods found with label app.kubernetes.io/name=message-broker-engine"
-            }
-            # Don't fail the build - just warn
-            Write-Host "[WARN] Pods may still be starting - check cluster manually if issues persist"
-          }
-          
-          Write-Host ""
-          Write-Host "[VERIFY] Deployment verification complete!"
+          echo "Verifying deployment..."
+
+          echo "[INFO] Waiting for deployment to be ready..."
+          if ! kubectl rollout status deployment/message-broker-engine -n ${{ env.NAMESPACE }} --timeout=3m; then
+            echo "[WARN] Deployment not ready, checking logs..."
+            kubectl logs -n ${{ env.NAMESPACE }} -l app.kubernetes.io/name=message-broker-engine --tail=30 || true
+          fi
+
+          echo ""
+          echo "Pods:"
+          kubectl get pods -n ${{ env.NAMESPACE }} -o wide
+          echo ""
+          echo "Services:"
+          kubectl get services -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "Deployments:"
+          kubectl get deployments -n ${{ env.NAMESPACE }}
+          echo ""
+          echo "[OK] Deployment verification complete!"
 
       - name: Deployment Summary
-        shell: powershell
         run: |
-          $imageTag = "${{ github.sha }}".Substring(0, 7)
-          Write-Host ""
-          Write-Host "=========================================="
-          Write-Host "Deployment Summary"
-          Write-Host "=========================================="
-          Write-Host "Namespace: ${{ env.NAMESPACE }}"
-          Write-Host "Release: messagebroker-engine"
-          Write-Host "Image: ${{ env.IMAGE_NAME }}:$imageTag"
-          Write-Host ""
-          Write-Host "Secrets: Kubernetes secret 'messagebroker-secrets'"
-          Write-Host ""
-          Write-Host "Rollback:"
-          Write-Host "  helm rollback messagebroker-engine -n ${{ env.NAMESPACE }}"
-          Write-Host "=========================================="
+          IMAGE_TAG="${{ github.sha }}"
+          IMAGE_TAG="${IMAGE_TAG:0:7}"
+          echo ""
+          echo "=========================================="
+          echo "Deployment Summary"
+          echo "=========================================="
+          echo "Namespace: ${{ env.NAMESPACE }}"
+          echo "Release: messagebroker-engine"
+          echo "Image: ${{ env.IMAGE_NAME }}:$IMAGE_TAG"
+          echo ""
+          echo "Rollback: helm rollback messagebroker-engine -n ${{ env.NAMESPACE }}"
+          echo "=========================================="
