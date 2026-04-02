@@ -1,6 +1,0 @@
-[workspace]
-resolver = "2"
-
-members = ["MessageBrokerEngine/hostbuilder", "MessageBrokerEngine/subscriber", "MessageBrokerEngine/program", "MessageBrokerEngine/publisher", "MessageBrokerEngine/topicmanager", "MessageBrokerEngine/protocol"]
-
-exclude = ["databaseschema", "BacktestingEngine", "DataEngine", "LoggingEngine", "SignalEngine", "SimulationEngine", "redisutils"]
