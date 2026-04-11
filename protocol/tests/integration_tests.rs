@@ -1,126 +1,214 @@
+use protocol::{
+    MessageCompressor, CompressionConfig, CompressionAlgorithm, AdaptiveCompressor,
+    tenant_topic, tenant_topic_uuid, parse_tenant_topic, is_tenant_topic, is_global_topic,
+};
+use uuid::Uuid;
+
+// ── Compression tests ─────────────────────────────────────────────────────────
+
+#[test]
+fn test_compression_lz4_round_trip() {
+    let config = CompressionConfig {
+        algorithm: CompressionAlgorithm::Lz4,
+        min_message_size_for_compression: 10,
+        ..Default::default()
+    };
+    let mut compressor = MessageCompressor::new(config);
+    let original = b"Round-trip LZ4: AAAAAA BBBBBB CCCCCC AAAAAA BBBBBB CCCCCC AAAAAA BBBBBB";
+    let compressed = compressor.compress(original).unwrap();
+    let decompressed = compressor.decompress(&compressed).unwrap();
+    assert_eq!(original.as_slice(), decompressed.as_slice());
+}
+
+#[test]
+fn test_compression_gzip_round_trip() {
+    let config = CompressionConfig {
+        algorithm: CompressionAlgorithm::Gzip,
+        compression_level: 6,
+        min_message_size_for_compression: 10,
+        ..Default::default()
+    };
+    let mut compressor = MessageCompressor::new(config);
+    let original = b"Round-trip Gzip: AAAAAA BBBBBB CCCCCC AAAAAA BBBBBB CCCCCC AAAAAA BBBBBB";
+    let compressed = compressor.compress(original).unwrap();
+    let decompressed = compressor.decompress(&compressed).unwrap();
+    assert_eq!(original.as_slice(), decompressed.as_slice());
+}
+
+#[test]
+fn test_compression_none_algorithm() {
+    let config = CompressionConfig {
+        algorithm: CompressionAlgorithm::None,
+        min_message_size_for_compression: 0,
+        ..Default::default()
+    };
+    let mut compressor = MessageCompressor::new(config);
+    let original = b"uncompressed payload";
+    let result = compressor.compress(original).unwrap();
+    // With None algorithm the header byte is 0 (uncompressed)
+    assert_eq!(result[0], 0u8);
+    let decompressed = compressor.decompress(&result).unwrap();
+    assert_eq!(original.as_slice(), decompressed.as_slice());
+}
+
+#[test]
+fn test_compression_small_message_skipped() {
+    let config = CompressionConfig {
+        algorithm: CompressionAlgorithm::Lz4,
+        min_message_size_for_compression: 1000,
+        ..Default::default()
+    };
+    let mut compressor = MessageCompressor::new(config);
+    let small = b"tiny";
+    let result = compressor.compress(small).unwrap();
+    // Small messages bypass compression: header byte 0 + original data
+    assert_eq!(result[0], 0u8);
+    assert_eq!(&result[1..], small);
+    let decompressed = compressor.decompress(&result).unwrap();
+    assert_eq!(small.as_slice(), decompressed.as_slice());
+}
+
+#[test]
+fn test_compression_empty_decompress() {
+    let config = CompressionConfig::default();
+    let mut compressor = MessageCompressor::new(config);
+    let result = compressor.decompress(&[]).unwrap();
+    assert!(result.is_empty());
+}
+
+#[test]
+fn test_compression_stats_tracking() {
+    let config = CompressionConfig {
+        algorithm: CompressionAlgorithm::Lz4,
+        min_message_size_for_compression: 10,
+        ..Default::default()
+    };
+    let mut compressor = MessageCompressor::new(config);
+    let data = b"Statistics tracking: AAAAAAA BBBBBBB CCCCCCC AAAAAAA BBBBBBB CCCCCCC AAAAAAA";
+    compressor.compress(data).unwrap();
+    let stats = compressor.get_stats();
+    assert_eq!(stats.total_messages, 1);
+    assert_eq!(stats.total_original_bytes, data.len() as u64);
+}
+
+#[test]
+fn test_compression_stats_reset() {
+    let config = CompressionConfig {
+        algorithm: CompressionAlgorithm::Lz4,
+        min_message_size_for_compression: 10,
+        ..Default::default()
+    };
+    let mut compressor = MessageCompressor::new(config);
+    let data = b"Some data for compression stats reset test data data data data";
+    compressor.compress(data).unwrap();
+    compressor.reset_stats();
+    let stats = compressor.get_stats();
+    assert_eq!(stats.total_messages, 0);
+    assert_eq!(stats.total_original_bytes, 0);
+}
+
+#[test]
+fn test_compression_stats_calculations() {
+    use protocol::compression::CompressionStats;
+    let mut stats = CompressionStats::default();
+    // Zero-state: no division by zero
+    assert_eq!(stats.compression_ratio(), 0.0);
+    assert_eq!(stats.average_compression_time_ns(), 0);
+    assert_eq!(stats.average_decompression_time_ns(), 0);
+    assert_eq!(stats.space_savings_bytes(), 0);
+    assert_eq!(stats.space_savings_percentage(), 0.0);
+
+    stats.total_original_bytes = 1000;
+    stats.total_compressed_bytes = 600;
+    stats.compressed_messages = 1;
+    stats.total_compression_time_ns = 5000;
+    stats.total_decompression_time_ns = 3000;
+
+    assert!((stats.compression_ratio() - 0.6).abs() < 1e-6);
+    assert_eq!(stats.average_compression_time_ns(), 5000);
+    assert_eq!(stats.average_decompression_time_ns(), 3000);
+    assert_eq!(stats.space_savings_bytes(), 400);
+    assert!((stats.space_savings_percentage() - 40.0).abs() < 1e-4);
+}
+
+#[test]
+fn test_adaptive_compressor_returns_data() {
+    let mut adaptive = AdaptiveCompressor::new();
+    let data = b"Adaptive compressor test: repeated pattern repeated pattern repeated pattern";
+    let (compressed, algorithm) = adaptive.compress(data).unwrap();
+    assert!(!compressed.is_empty());
+    assert!(matches!(algorithm, CompressionAlgorithm::Lz4 | CompressionAlgorithm::Gzip));
+}
+
 #[tokio::test]
-async fn test_protocol_module_exists() {
-    // Basic test to ensure the protocol module compiles and is accessible
-    // The actual message structures are generated from protobuf files
-    
-    // This test mainly validates that:
-    // 1. The protocol module can be imported
-    // 2. The build process works correctly
-    // 3. Generated code compiles without errors
-    
-    assert!(true, "Protocol module is accessible");
-}
-
-#[test]
-fn test_protobuf_compilation() {
-    // Test that protobuf messages can be created and used
-    // Note: The exact message types depend on the .proto file content
-    
-    // Since we're importing generated code, we mainly test that it compiles
-    // and the module structure is correct
-    
-    assert!(true, "Protobuf compilation successful");
-}
-
-#[test] 
-fn test_message_serialization() {
-    // Test basic protobuf serialization/deserialization
-    // This is a framework test to ensure protobuf functionality works
-    
-    // Since the exact message types are generated from .proto files,
-    // we can't test specific message types without knowing the schema.
-    // This test validates the build system and import structure.
-    
-    assert!(true, "Message serialization framework available");
-}
-
-#[tokio::test]
-async fn test_async_protocol_operations() {
-    // Test that protocol operations can be used in async context
-    
-    assert!(true, "Async protocol operations supported");
-}
-
-#[test]
-fn test_module_structure() {
-    // Test that the module structure matches expectations
-    
-    // Verify namespace structure: protocol::broker::messages
-    // This ensures the protobuf code generation is working correctly
-    
-    assert!(true, "Module structure is correct");
-}
-
-#[test]
-fn test_build_system_integration() {
-    // Test that the build.rs script and prost integration work
-    
-    // The fact that this file compiles means:
-    // 1. build.rs executed successfully  
-    // 2. Protobuf files were found and processed
-    // 3. Generated Rust code is valid
-    // 4. Include paths are correct
-    
-    assert!(true, "Build system integration working");
-}
-
-#[test]
-fn test_dependency_resolution() {
-    // Test that all prost dependencies resolve correctly
-    
-    // Since we can import the generated code, this validates:
-    // 1. prost dependency is available
-    // 2. prost-types dependency is available  
-    // 3. Generated code uses correct prost attributes
-    
-    assert!(true, "Dependencies resolved correctly");
-}
-
-#[tokio::test]
-async fn test_concurrent_protocol_access() {
-    // Test that protocol types can be used concurrently
-    
-    let handles = vec![
-        tokio::spawn(async {
-            // Simulate concurrent protocol usage
-            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
-            true
-        }),
-        tokio::spawn(async {
-            // Simulate concurrent protocol usage
-            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
-            true
-        }),
-        tokio::spawn(async {
-            // Simulate concurrent protocol usage  
-            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
-            true
-        }),
-    ];
-    
-    for handle in handles {
-        assert!(handle.await.unwrap());
+async fn test_compression_concurrent_access() {
+    use std::sync::{Arc, Mutex};
+    let results = Arc::new(Mutex::new(Vec::new()));
+    let mut handles = vec![];
+    for i in 0u8..4 {
+        let results_clone = results.clone();
+        let handle = tokio::spawn(async move {
+            let config = CompressionConfig {
+                algorithm: CompressionAlgorithm::Lz4,
+                min_message_size_for_compression: 10,
+                ..Default::default()
+            };
+            let mut compressor = MessageCompressor::new(config);
+            let data = vec![i; 80];
+            let compressed = compressor.compress(&data).unwrap();
+            let decompressed = compressor.decompress(&compressed).unwrap();
+            results_clone.lock().unwrap().push(decompressed == data);
+        });
+        handles.push(handle);
     }
+    for h in handles { h.await.unwrap(); }
+    let r = results.lock().unwrap();
+    assert_eq!(r.len(), 4);
+    assert!(r.iter().all(|&ok| ok));
+}
+
+// ── Tenant-topic tests ────────────────────────────────────────────────────────
+
+#[test]
+fn test_tenant_topic_format() {
+    let topic = tenant_topic("abc-123", "strategy.deployment");
+    assert_eq!(topic, "tenant.abc-123.strategy.deployment");
 }
 
 #[test]
-fn test_memory_safety() {
-    // Test that protocol types are memory safe
-    
-    // Generated protobuf code should be memory safe by design
-    // This test validates that we can work with the types safely
-    
-    assert!(true, "Protocol types are memory safe");
+fn test_tenant_topic_uuid_format() {
+    let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000")
+        .expect("hard-coded UUID string must be valid");
+    let topic = tenant_topic_uuid(id, "strategy.deployment");
+    assert_eq!(topic, "tenant.550e8400e29b41d4a716446655440000.strategy.deployment");
 }
 
 #[test]
-fn test_error_handling() {
-    // Test error handling capabilities
-    
-    // Protobuf operations can fail, ensure error types are available
-    // and properly integrated
-    
-    assert!(true, "Error handling available");
+fn test_parse_tenant_topic_valid() {
+    let (tid, base) = parse_tenant_topic("tenant.abc-123.strategy.deployment").unwrap();
+    assert_eq!(tid, "abc-123");
+    assert_eq!(base, "strategy.deployment");
+}
+
+#[test]
+fn test_parse_tenant_topic_invalid() {
+    assert!(parse_tenant_topic("global.orders").is_none());
+    assert!(parse_tenant_topic("tenant.").is_none());
+    assert!(parse_tenant_topic("tenant..foo").is_none());
+}
+
+#[test]
+fn test_is_tenant_topic() {
+    assert!(is_tenant_topic("tenant.abc.strategy.deployment", "abc"));
+    assert!(!is_tenant_topic("tenant.abc.strategy.deployment", "xyz"));
+    assert!(!is_tenant_topic("global.orders", "abc"));
+}
+
+#[test]
+fn test_is_global_topic() {
+    assert!(is_global_topic("orders"));
+    assert!(is_global_topic("market.data.kraken.xbt_usd"));
+    assert!(!is_global_topic("tenant.abc.orders"));
 }
 
 // ── Tests for extended PublishRequest payload variants ───────────────────────

@@ -187,12 +187,18 @@ async fn test_order_structure() {
 fn test_publisher_creation() {
     let config = PublisherConfig::new("127.0.0.1:8080")
         .with_topics(vec!["orders".to_string(), "trades".to_string()]);
-    
-    let _publisher = Publisher::new(config.clone());
-    
-    // Test that publisher is created with proper configuration
-    // We can't easily test internal state, but we can verify it doesn't panic
-    assert!(true); // Placeholder assertion - publisher created successfully
+
+    // Publisher::new connects to a broker; without a live broker it returns an error,
+    // but the constructor itself must not panic and must produce a typed result.
+    let result = Publisher::new(config);
+    // Either Ok (broker available) or a typed connection error – never a panic.
+    match result {
+        Ok(_) => {}
+        Err(e) => assert!(matches!(
+            e,
+            publisher::UltraFastError::ConnectionFailed | publisher::UltraFastError::SystemError
+        )),
+    }
 }
 
 #[tokio::test]
