@@ -581,6 +581,10 @@ pub struct ChromosomeEvalRequest {
     /// When non-empty, workers should load and evaluate ALL assets
     #[prost(message, repeated, tag = "21")]
     pub assets: Vec<AssetInfo>,
+    /// Fraction of training data to use for evaluation (0.0-1.0, default 1.0)
+    /// Early generations use smaller subsamples for faster convergence
+    #[prost(double, tag = "22")]
+    pub subsample_ratio: f64,
 }
 
 /// Result from chromosome evaluation
