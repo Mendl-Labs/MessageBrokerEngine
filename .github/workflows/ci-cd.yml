@@ -328,7 +328,7 @@ jobs:
           for SECRET_NAME in "${REQUIRED_SECRETS[@]}"; do
             ENV_NAME="${SECRET_NAME//-/_}"
             VALUE=$(az keyvault secret show --vault-name "$AZURE_KEYVAULT_NAME" --name "$SECRET_NAME" --query value -o tsv 2>&1) || {
-              echo "::error::[FAIL] Failed to fetch required secret $SECRET_NAME: $VALUE"
+              echo "::error::[FAIL] Failed to fetch required secret $SECRET_NAME"
               exit 1
             }
             if [ -z "$VALUE" ]; then
