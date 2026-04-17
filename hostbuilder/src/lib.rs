@@ -574,17 +574,31 @@ impl Connection {
         self.last_activity.store(get_rdtsc(), Ordering::Relaxed);
     }
     
-    /// Send a message to this connection
+    /// Send a message to this connection (with timeout to prevent blocking on dead connections)
     pub async fn send_message(&self, topic: &str, data: &[u8]) -> Result<(), std::io::Error> {
         let mut writer = self.writer.lock().await;
         
         // Wire format: [topic_len: u32][topic: bytes][data_len: u32][data: bytes]
         let topic_bytes = topic.as_bytes();
-        writer.write_u32_le(topic_bytes.len() as u32).await?;
-        writer.write_all(topic_bytes).await?;
-        writer.write_u32_le(data.len() as u32).await?;
-        writer.write_all(data).await?;
-        writer.flush().await?;
+        let send_future = async {
+            writer.write_u32_le(topic_bytes.len() as u32).await?;
+            writer.write_all(topic_bytes).await?;
+            writer.write_u32_le(data.len() as u32).await?;
+            writer.write_all(data).await?;
+            writer.flush().await?;
+            Ok::<(), std::io::Error>(())
+        };
+        
+        // 5s timeout prevents blocking on dead connections whose TCP buffer is full
+        match tokio::time::timeout(std::time::Duration::from_secs(5), send_future).await {
+            Ok(result) => result?,
+            Err(_) => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "Send timed out (connection likely dead)",
+                ));
+            }
+        }
         
         self.update_activity();
         Ok(())
@@ -743,17 +757,14 @@ impl MessageBrokerHost {
                     println!("⚠️ [BROKER] Connection {} read error: {} (kind: {:?}, is_subscriber: {})", 
                         conn_id, e, e.kind(), connection.is_subscriber());
                     if e.kind() == std::io::ErrorKind::UnexpectedEof {
-                        // EOF - check if this is a subscriber connection
-                        // Subscribers may not send any more data after SUBSCRIBE messages
                         if connection.is_subscriber() {
-                            // Keep subscriber connection alive - just exit this read loop
-                            // The connection's writer is still valid for sending messages
-                            println!("📭 [BROKER] Connection {} (subscriber) read EOF - keeping connection alive for outbound messages", conn_id);
-                            // Wait until shutdown or connection is closed
-                            while is_running.load(Ordering::Relaxed) && connection.is_active() {
-                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                            }
-                            break;
+                            // EOF on a subscriber means the remote end is gone (pod restart/crash).
+                            // Close immediately and remove from routing to avoid sending to dead connections.
+                            println!("🔌 [BROKER] Connection {} (subscriber) read EOF - closing and removing from routing", conn_id);
+                            connection.close();
+                            subscription_manager.unsubscribe_all(conn_id);
+                            connections.write().remove(&conn_id);
+                            return; // Skip the cleanup below since we already removed
                         } else {
                             println!("❌ [BROKER] Connection {} got EOF but is NOT a subscriber, closing", conn_id);
                         }
