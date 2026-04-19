@@ -138,6 +138,8 @@ message StrategyDeployment {
     bytes risk_metrics = 14;
     bool admin_approved = 15;
     int64 timestamp = 16;
+    // Deployment mode: "paper" or "live"
+    string mode = 17;
 }
 
 message StrategyDeactivation {

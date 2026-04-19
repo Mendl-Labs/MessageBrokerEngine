@@ -878,6 +878,9 @@ pub struct StrategyDeployment {
     /// Deployment timestamp
     #[prost(int64, tag = "16")]
     pub timestamp: i64,
+    /// Deployment mode: "paper" or "live"
+    #[prost(string, tag = "17")]
+    pub mode: String,
 }
 
 /// Strategy deactivation event - sent when a strategy is deactivated
