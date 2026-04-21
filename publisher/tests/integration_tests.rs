@@ -73,7 +73,8 @@ async fn test_publisher_config_builder() {
         .with_retry_attempts(3)
         .with_connection_timeout(Duration::from_secs(5));
     
-    assert_eq!(config.broker_address, "127.0.0.1:8080");
+    assert_eq!(config.broker_address, "127.0.0.1");
+    assert_eq!(config.broker_port, 8080);
     assert_eq!(config.batch_size, 100);
     assert_eq!(config.flush_interval, Duration::from_millis(50));
     assert_eq!(config.tcp_nodelay, true);
@@ -265,7 +266,8 @@ async fn test_performance_stats_edge_cases() {
 async fn test_publisher_config_defaults() {
     let config = PublisherConfig::new("localhost:9000");
     
-    assert_eq!(config.broker_address, "localhost:9000");
+    assert_eq!(config.broker_address, "localhost");
+    assert_eq!(config.broker_port, 9000);
     assert_eq!(config.batch_size, 1000); // Default batch size
     assert_eq!(config.flush_interval, Duration::from_millis(10)); // Default flush interval
     assert_eq!(config.tcp_nodelay, true); // Default TCP nodelay
