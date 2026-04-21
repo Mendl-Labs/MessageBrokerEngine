@@ -189,14 +189,14 @@ pub struct PublisherConfig {
 impl PublisherConfig {
     pub fn new(broker_address: &str) -> Self {
         let parts: Vec<&str> = broker_address.split(':').collect();
-        let (_, port) = if parts.len() == 2 {
+        let (host, port) = if parts.len() == 2 {
             (parts[0].to_string(), parts[1].parse().unwrap_or(9000))
         } else {
             (broker_address.to_string(), 9000)
         };
 
         Self {
-            broker_address: broker_address.to_string(), // Preserve full address
+            broker_address: host, // Store only the host; port is in broker_port
             broker_port: port,
             batch_size: 1000, // Match test expectation
             flush_interval: Duration::from_millis(10), // Match test expectation
