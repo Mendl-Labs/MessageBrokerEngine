@@ -1,0 +1,261 @@
+﻿Deploy to Kubernetes	UNKNOWN STEP	∩╗┐2026-04-18T19:20:17.8551178Z Current runner version: '2.333.1'
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8590603Z ##[group]Runner Image Provisioner
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8591938Z Hosted Compute Agent
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8592770Z Version: 20260213.493
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8593768Z Commit: 5c115507f6dd24b8de37d8bbe0bb4509d0cc0fa3
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8594877Z Build Date: 2026-02-13T00:28:41Z
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8595962Z Worker ID: {f0600359-4ea1-46c7-be49-44ba9301d7f8}
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8597128Z Azure Region: eastus
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8598155Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8600699Z ##[group]Operating System
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8601792Z Ubuntu
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8602602Z 24.04.4
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8603837Z LTS
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8604567Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8605379Z ##[group]Runner Image
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8606374Z Image: ubuntu-24.04
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8607305Z Version: 20260413.86.1
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8609565Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260413.86/images/ubuntu/Ubuntu2404-Readme.md
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8612028Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260413.86
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8613590Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8615785Z ##[group]GITHUB_TOKEN Permissions
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8619242Z Contents: read
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8620156Z Metadata: read
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8620986Z Packages: write
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8621889Z SecurityEvents: write
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8622823Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8625786Z Secret source: Actions
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.8627485Z Prepare workflow directory
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.9180293Z Prepare all required actions
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:17.9234967Z Getting action download info
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.2331912Z Download action repository 'actions/checkout@v4' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.3669013Z Download action repository 'azure/setup-helm@v4' (SHA:1a275c3b69536ee54be43f2070a358922e12c8d4)
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.6438395Z Complete job name: Deploy to Kubernetes
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7165704Z ##[group]Run actions/checkout@v4
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7166632Z with:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7167117Z   path: SignalEngine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7167682Z   repository: Nwagbara-Group-LLC/SignalEngine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7168903Z   token: ***
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7169399Z   ssh-strict: true
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7169885Z   ssh-user: git
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7170387Z   persist-credentials: true
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7170926Z   clean: true
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7171441Z   sparse-checkout-cone-mode: true
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7172030Z   fetch-depth: 1
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7172528Z   fetch-tags: false
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7173024Z   show-progress: true
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7173510Z   lfs: false
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7173993Z   submodules: false
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7174488Z   set-safe-directory: true
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7175276Z env:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7175825Z   IMAGE_NAME: ghcr.io/nwagbara-group-llc/signal-engine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7176510Z   NAMESPACE: signalengine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7177131Z   HELM_CHART_PATH: k8s/signal-engine-helm
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7177937Z   DOCKER_BUILDKIT: 1
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.7178420Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9480298Z Syncing repository: Nwagbara-Group-LLC/SignalEngine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9495951Z ##[group]Getting Git version info
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9498387Z Working directory is '/home/runner/work/SignalEngine/SignalEngine/SignalEngine'
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9501857Z [command]/usr/bin/git version
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9503856Z git version 2.53.0
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9512612Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9522080Z Temporarily overriding HOME='/home/runner/work/_temp/e7cb35b9-c7b3-46ca-8841-07f1dfa29c15' before making global git config changes
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9525776Z Adding repository directory to the temporary git global config as a safe directory
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9631640Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/SignalEngine/SignalEngine/SignalEngine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9636608Z ##[group]Initializing the repository
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9638166Z [command]/usr/bin/git init /home/runner/work/SignalEngine/SignalEngine/SignalEngine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9640088Z hint: Using 'master' as the name for the initial branch. This default branch name
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9641458Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9642833Z hint: to use in all of your new repositories, which will suppress this warning,
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9643862Z hint: call:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9644640Z hint:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9645592Z hint: 	git config --global init.defaultBranch <name>
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9646527Z hint:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9647648Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9649289Z hint: 'development'. The just-created branch can be renamed via this command:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9650300Z hint:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9651097Z hint: 	git branch -m <name>
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9651922Z hint:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9653085Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9654661Z Initialized empty Git repository in /home/runner/work/SignalEngine/SignalEngine/SignalEngine/.git/
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9668099Z [command]/usr/bin/git remote add origin https://github.com/Nwagbara-Group-LLC/SignalEngine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9686808Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9688283Z ##[group]Disabling automatic garbage collection
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9689324Z [command]/usr/bin/git config --local gc.auto 0
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9692234Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9693346Z ##[group]Setting up auth
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9694455Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9879954Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9886680Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9893186Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9899459Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:18.9904469Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.0085256Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.0126790Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.0129307Z ##[group]Fetching the repository
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.0137473Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +ccc9fbd187e947969d2063f1e0f0eaf429a73cb2:refs/remotes/origin/main
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3074641Z From https://github.com/Nwagbara-Group-LLC/SignalEngine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3097035Z  * [new ref]         ccc9fbd187e947969d2063f1e0f0eaf429a73cb2 -> origin/main
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3114255Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3115789Z ##[group]Determining the checkout info
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3117510Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3120873Z [command]/usr/bin/git sparse-checkout disable
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3164341Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3196540Z ##[group]Checking out the ref
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3201392Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3400974Z Switched to a new branch 'main'
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3414096Z branch 'main' set up to track 'origin/main'.
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3419844Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3454966Z [command]/usr/bin/git log -1 --format=%H
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3482587Z ccc9fbd187e947969d2063f1e0f0eaf429a73cb2
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3713226Z ##[group]Run azure/setup-helm@v4
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3714101Z with:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3715055Z   version: v3.15.3
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3716044Z   token: ***
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3716826Z   downloadBaseURL: https://get.helm.sh
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3717685Z env:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3718664Z   IMAGE_NAME: ghcr.io/nwagbara-group-llc/signal-engine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3719614Z   NAMESPACE: signalengine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3720443Z   HELM_CHART_PATH: k8s/signal-engine-helm
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3721302Z   DOCKER_BUILDKIT: 1
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.3722033Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.4510237Z ##[group]Installing v3.15.3
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.4524028Z Downloading 'v3.15.3' from 'https://get.helm.sh'
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:19.7563154Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/b99bff32-81e2-4019-8a1a-29f83433137b -f /home/runner/work/_temp/2e054a3c-5fd2-4781-84c4-70acf4726912
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2546734Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2548603Z Helm tool version 'v3.15.3' has been cached at /opt/hostedtoolcache/helm/3.15.3/x64/linux-amd64/helm
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2705491Z ##[group]Run mkdir -p "$HOME/.kube"
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2706734Z [36;1mmkdir -p "$HOME/.kube"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2708251Z [36;1mecho "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2709737Z [36;1mchmod 600 "$HOME/.kube/config"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2740497Z shell: /usr/bin/bash -e {0}
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2741477Z env:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2742417Z   IMAGE_NAME: ghcr.io/nwagbara-group-llc/signal-engine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2743746Z   NAMESPACE: signalengine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2744757Z   HELM_CHART_PATH: k8s/signal-engine-helm
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.2745918Z   DOCKER_BUILDKIT: 1
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.3243566Z   KUBE_CONFIG: ***
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.3244506Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7051512Z ##[group]Run echo "Verifying Kubernetes connection..."
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7052029Z [36;1mecho "Verifying Kubernetes connection..."[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7052413Z [36;1mkubectl cluster-info[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7052703Z [36;1mkubectl get nodes[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7053054Z [36;1mecho "[OK] Kubernetes connection verified"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7077463Z shell: /usr/bin/bash -e {0}
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7078046Z env:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7078363Z   IMAGE_NAME: ghcr.io/nwagbara-group-llc/signal-engine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7078748Z   NAMESPACE: signalengine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7079052Z   HELM_CHART_PATH: k8s/signal-engine-helm
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7079370Z   DOCKER_BUILDKIT: 1
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7079620Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:20.7223634Z Verifying Kubernetes connection...
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.1521332Z Kubernetes control plane is running at https://195.201.58.182:6443
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.1522971Z CoreDNS is running at https://195.201.58.182:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.1529084Z Metrics-server is running at https://195.201.58.182:6443/api/v1/namespaces/kube-system/services/https:metrics-server:https/proxy
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.1547958Z 
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.1549148Z To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4909604Z NAME                           STATUS   ROLES           AGE   VERSION
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4929526Z ubuntu-2404-noble-amd64-base   Ready    control-plane   19d   v1.34.6+k3s1
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4937487Z [OK] Kubernetes connection verified
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4970135Z ##[group]Run set -euo pipefail
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4970520Z [36;1mset -euo pipefail[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4970829Z [36;1mecho "Fetching secrets from Azure Key Vault..."[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4971152Z [36;1m[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4971377Z [36;1mif [ -z "${AZURE_CREDENTIALS:-}" ]; then[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4971758Z [36;1m  echo "::error::AZURE_CREDENTIALS secret is empty or not set"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4972100Z [36;1m  exit 1[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4972300Z [36;1mfi[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4972521Z [36;1m[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4972806Z [36;1mCLIENT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r '.clientId')[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4973281Z [36;1mCLIENT_SECRET=$(echo "$AZURE_CREDENTIALS" | jq -r '.clientSecret')[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4973976Z [36;1mTENANT_ID=$(echo "$AZURE_CREDENTIALS" | jq -r '.tenantId')[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4974304Z [36;1m[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4974657Z [36;1mif [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$TENANT_ID" ]; then[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4975105Z [36;1m  echo "::error::Invalid Azure credentials format"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4975417Z [36;1m  exit 1[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4975622Z [36;1mfi[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4975881Z [36;1mecho "[OK] Azure credentials parsed successfully"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4976185Z [36;1m[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4976410Z [36;1mecho "[INFO] Authenticating with Azure..."[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4976732Z [36;1maz login --service-principal \[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4977021Z [36;1m  --username "$CLIENT_ID" \[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4977305Z [36;1m  --password "$CLIENT_SECRET" \[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4977585Z [36;1m  --tenant "$TENANT_ID" \[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4978174Z [36;1m  --output none[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4978475Z [36;1mecho "[OK] Successfully authenticated with Azure"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4978771Z [36;1m[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4978970Z [36;1m# Required secrets[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4979213Z [36;1mREQUIRED_SECRETS=([0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4979614Z [36;1m  "POSTGRES-HOST" "POSTGRES-PORT" "POSTGRES-USER" "POSTGRES-PASSWORD" "POSTGRES-DB"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4980064Z [36;1m)[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4980251Z [36;1m[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4980440Z [36;1m# Optional secrets[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4980676Z [36;1mOPTIONAL_SECRETS=([0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4981055Z [36;1m  "ELASTIC-CLOUD-ENDPOINT" "ELASTIC-CLOUD-USERNAME" "ELASTIC-CLOUD-PASSWORD"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4981495Z [36;1m  "kraken-api-key" "kraken-secret-key"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4981775Z [36;1m)[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4981959Z [36;1m[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4982192Z [36;1mecho "[INFO] Fetching required secrets..."[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4982540Z [36;1mfor SECRET_NAME in "${REQUIRED_SECRETS[@]}"; do[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4982851Z [36;1m  ENV_NAME="${SECRET_NAME//-/_}"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4983393Z [36;1m  VALUE=$(az keyvault secret show --vault-name "$AZURE_KEYVAULT_NAME" --name "$SECRET_NAME" --query value -o tsv 2>&1) || {[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4984028Z [36;1m    echo "::error::[FAIL] Failed to fetch required secret $SECRET_NAME"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4984387Z [36;1m    exit 1[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4984597Z [36;1m  }[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4984807Z [36;1m  if [ -z "$VALUE" ]; then[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4985149Z [36;1m    echo "::error::[FAIL] Empty value for required secret $SECRET_NAME"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4985495Z [36;1m    exit 1[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4985701Z [36;1m  fi[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4985911Z [36;1m  echo "::add-mask::$VALUE"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4986208Z [36;1m  echo "${ENV_NAME}=${VALUE}" >> "$GITHUB_ENV"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4986523Z [36;1m  echo "[OK] Fetched $SECRET_NAME"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4986779Z [36;1mdone[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4986982Z [36;1m[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4987209Z [36;1mecho "[INFO] Fetching optional secrets..."[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4987558Z [36;1mfor SECRET_NAME in "${OPTIONAL_SECRETS[@]}"; do[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4988183Z [36;1m  ENV_NAME="${SECRET_NAME//-/_}"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4989014Z [36;1m  VALUE=$(az keyvault secret show --vault-name "$AZURE_KEYVAULT_NAME" --name "$SECRET_NAME" --query value -o tsv 2>/dev/null) || VALUE=""[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4989615Z [36;1m  if [ -n "$VALUE" ]; then[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4989897Z [36;1m    echo "::add-mask::$VALUE"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4990200Z [36;1m    echo "${ENV_NAME}=${VALUE}" >> "$GITHUB_ENV"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4990534Z [36;1m    echo "[OK] Fetched $SECRET_NAME"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4990884Z [36;1m  else[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4991133Z [36;1m    echo "${ENV_NAME}=" >> "$GITHUB_ENV"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4991492Z [36;1m    echo "[SKIP] $SECRET_NAME not found in Key Vault (optional)"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4991838Z [36;1m  fi[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4992157Z [36;1mdone[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4992351Z [36;1m[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4992555Z [36;1maz logout 2>/dev/null || true[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.4992854Z [36;1mecho "[OK] All secrets fetched successfully"[0m
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5015303Z shell: /usr/bin/bash -e {0}
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5015576Z env:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5015841Z   IMAGE_NAME: ghcr.io/nwagbara-group-llc/signal-engine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5016176Z   NAMESPACE: signalengine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5016439Z   HELM_CHART_PATH: k8s/signal-engine-helm
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5016712Z   DOCKER_BUILDKIT: 1
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5017959Z   AZURE_CREDENTIALS: ***
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5018308Z   AZURE_KEYVAULT_NAME: ***
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5018551Z ##[endgroup]
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5065044Z Fetching secrets from Azure Key Vault...
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5170585Z [OK] Azure credentials parsed successfully
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:23.5171427Z [INFO] Authenticating with Azure...
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:25.8321958Z [OK] Successfully authenticated with Azure
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:25.8336146Z [INFO] Fetching required secrets...
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.6646318Z ##[error][FAIL] Failed to fetch required secret POSTGRES-HOST
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.6657485Z ##[error]Process completed with exit code 1.
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.6784619Z Post job cleanup.
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.7863362Z [command]/usr/bin/git version
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.7905260Z git version 2.53.0
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.7953905Z Temporarily overriding HOME='/home/runner/work/_temp/1a9c9993-2681-4635-9720-6e1fa0859de3' before making global git config changes
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.7955496Z Adding repository directory to the temporary git global config as a safe directory
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.7961870Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/SignalEngine/SignalEngine/SignalEngine
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.8012472Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.8054144Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.8325818Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.8361018Z http.https://github.com/.extraheader
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.8373845Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.8412551Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.8759897Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.8772619Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.9330170Z Cleaning up orphan processes
+Deploy to Kubernetes	UNKNOWN STEP	2026-04-18T19:20:32.9598686Z ##[warning]Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@v4, azure/setup-helm@v4. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
