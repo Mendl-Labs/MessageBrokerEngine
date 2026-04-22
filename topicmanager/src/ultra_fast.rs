@@ -70,7 +70,12 @@ pub struct FixedTopicName {
 
 impl FixedTopicName {
     pub fn new(name: &str) -> Option<Self> {
-        if name.len() > TOPIC_NAME_SIZE {
+        if name.is_empty() || name.len() > TOPIC_NAME_SIZE {
+            return None;
+        }
+
+        // Only allow alphanumeric, hyphen, underscore, and dot to prevent injection.
+        if !name.bytes().all(|b| matches!(b, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.')) {
             return None;
         }
 
