@@ -227,14 +227,15 @@ impl UltraFastSubscriber {
     }
 
     pub async fn subscribe_to_topic(&self, topic_name: &str) -> Result<(), UltraFastError> {
-        let mut topics = self.subscribed_topics.write();
-        
-        if !topics.contains_key(topic_name) {
-            topics.insert(topic_name.to_string(), Arc::new(SegQueue::new()));
+        {
+            let mut topics = self.subscribed_topics.write();
+
+            if !topics.contains_key(topic_name) {
+                topics.insert(topic_name.to_string(), Arc::new(SegQueue::new()));
+            }
         }
 
         // Ensure the TCP connection is ready before sending SUBSCRIBE frames.
-        drop(topics);
         self.ensure_connection().await?;
         self.send_subscribe(topic_name).await?;
         self.wait_for_subscribe_ack(topic_name).await?;
