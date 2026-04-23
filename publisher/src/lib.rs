@@ -380,10 +380,11 @@ impl UltraFastPublisher {
             for message in messages_to_send {
                 let send_start = get_rdtsc();
                 
-                // Create a simple message format: [topic_len][topic][data_len][data]
+                // Broker wire format: [msg_type:0x01][topic_len:u32][topic][data_len:u32][data]
                 let topic_bytes = message.topic.as_bytes();
-                let mut buffer = Vec::with_capacity(8 + topic_bytes.len() + message.data.len());
+                let mut buffer = Vec::with_capacity(9 + topic_bytes.len() + message.data.len());
                 
+                buffer.push(0x01);
                 buffer.extend_from_slice(&(topic_bytes.len() as u32).to_le_bytes());
                 buffer.extend_from_slice(topic_bytes);
                 buffer.extend_from_slice(&(message.data.len() as u32).to_le_bytes());
