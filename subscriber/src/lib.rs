@@ -10,6 +10,10 @@ use std::collections::HashMap;
 
 use crossbeam::queue::SegQueue;
 use parking_lot::RwLock;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::net::TcpStream;
+use tokio::sync::Mutex;
 
 /// Cross-platform timestamp function optimized for ultra-low latency
 #[cfg(target_arch = "x86_64")]
@@ -186,6 +190,9 @@ pub struct UltraFastSubscriber {
     performance_stats: Arc<PerformanceStats>,
     last_heartbeat: AtomicU64,
     messages_received: AtomicU64,
+    reader: Arc<Mutex<Option<OwnedReadHalf>>>,
+    writer: Arc<Mutex<Option<OwnedWriteHalf>>>,
+    reader_started: Arc<AtomicBool>,
 }
 
 impl Clone for UltraFastSubscriber {
@@ -197,6 +204,9 @@ impl Clone for UltraFastSubscriber {
             performance_stats: Arc::clone(&self.performance_stats),
             last_heartbeat: AtomicU64::new(self.last_heartbeat.load(Ordering::Relaxed)),
             messages_received: AtomicU64::new(self.messages_received.load(Ordering::Relaxed)),
+            reader: Arc::clone(&self.reader),
+            writer: Arc::clone(&self.writer),
+            reader_started: Arc::clone(&self.reader_started),
         }
     }
 }
@@ -210,6 +220,9 @@ impl UltraFastSubscriber {
             performance_stats: Arc::new(PerformanceStats::new()),
             last_heartbeat: AtomicU64::new(get_rdtsc()),
             messages_received: AtomicU64::new(0),
+            reader: Arc::new(Mutex::new(None)),
+            writer: Arc::new(Mutex::new(None)),
+            reader_started: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -219,6 +232,12 @@ impl UltraFastSubscriber {
         if !topics.contains_key(topic_name) {
             topics.insert(topic_name.to_string(), Arc::new(SegQueue::new()));
         }
+
+        // Ensure the TCP connection is ready before sending SUBSCRIBE frames.
+        drop(topics);
+        self.ensure_connection().await?;
+        self.send_subscribe(topic_name).await?;
+        self.wait_for_subscribe_ack(topic_name).await?;
         
         Ok(())
     }
@@ -300,11 +319,206 @@ impl UltraFastSubscriber {
 
     pub fn start(&self) {
         self.is_running.store(true, Ordering::Relaxed);
+
+        if self
+            .reader_started
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
+            let reader = Arc::clone(&self.reader);
+            let topics = Arc::clone(&self.subscribed_topics);
+            let is_running = self.is_running.load(Ordering::Relaxed);
+            let running = Arc::new(AtomicBool::new(is_running));
+            running.store(true, Ordering::Relaxed);
+
+            let stats = Arc::clone(&self.performance_stats);
+            let heartbeat = Arc::new(AtomicU64::new(self.last_heartbeat.load(Ordering::Relaxed)));
+            let msg_count = Arc::new(AtomicU64::new(self.messages_received.load(Ordering::Relaxed)));
+
+            tokio::spawn(async move {
+                let mut reader_half = {
+                    let mut guard = reader.lock().await;
+                    match guard.take() {
+                        Some(r) => r,
+                        None => return,
+                    }
+                };
+
+                loop {
+                    if !running.load(Ordering::Relaxed) {
+                        break;
+                    }
+
+                    let first = match reader_half.read_u8().await {
+                        Ok(b) => b,
+                        Err(_) => break,
+                    };
+
+                    // SUBSCRIBE_ACK frame from broker: [0x03][topic_len:u32][topic:bytes]
+                    if first == 0x03 {
+                        let ack_len = match reader_half.read_u32_le().await {
+                            Ok(v) => v as usize,
+                            Err(_) => break,
+                        };
+                        let mut ack_topic = vec![0u8; ack_len];
+                        if reader_half.read_exact(&mut ack_topic).await.is_err() {
+                            break;
+                        }
+                        continue;
+                    }
+
+                    // PUBLISH frame from broker: [topic_len:u32][topic][data_len:u32][data]
+                    let mut len_rest = [0u8; 3];
+                    if reader_half.read_exact(&mut len_rest).await.is_err() {
+                        break;
+                    }
+
+                    let topic_len = (first as u32)
+                        | ((len_rest[0] as u32) << 8)
+                        | ((len_rest[1] as u32) << 16)
+                        | ((len_rest[2] as u32) << 24);
+                    let topic_len = topic_len as usize;
+                    if topic_len == 0 || topic_len > 1024 {
+                        break;
+                    }
+
+                    let mut topic_buf = vec![0u8; topic_len];
+                    if reader_half.read_exact(&mut topic_buf).await.is_err() {
+                        break;
+                    }
+                    let topic = String::from_utf8_lossy(&topic_buf).to_string();
+
+                    let data_len = match reader_half.read_u32_le().await {
+                        Ok(v) => v as usize,
+                        Err(_) => break,
+                    };
+                    if data_len > 16 * 1024 * 1024 {
+                        break;
+                    }
+
+                    let mut data = vec![0u8; data_len];
+                    if reader_half.read_exact(&mut data).await.is_err() {
+                        break;
+                    }
+
+                    let message = UltraFastMessage::new(topic.clone(), data, msg_count.load(Ordering::Relaxed) + 1);
+                    if let Some(queue) = topics.read().get(&topic) {
+                        queue.push(message);
+                        msg_count.fetch_add(1, Ordering::Relaxed);
+                        heartbeat.store(get_rdtsc(), Ordering::Relaxed);
+                        stats.record_latency(0);
+                    }
+                }
+            });
+        }
     }
 
     pub fn stop(&self) {
         self.is_running.store(false, Ordering::Relaxed);
     }
+
+    async fn ensure_connection(&self) -> Result<(), UltraFastError> {
+        {
+            let writer_guard = self.writer.lock().await;
+            if writer_guard.is_some() {
+                return Ok(());
+            }
+        }
+
+        let address = broker_address_from_env();
+        let stream = TcpStream::connect(&address)
+            .await
+            .map_err(|_| UltraFastError::ConnectionFailed)?;
+        let _ = stream.set_nodelay(true);
+
+        let (read_half, write_half) = stream.into_split();
+        {
+            let mut writer_guard = self.writer.lock().await;
+            *writer_guard = Some(write_half);
+        }
+        {
+            let mut reader_guard = self.reader.lock().await;
+            *reader_guard = Some(read_half);
+        }
+
+        Ok(())
+    }
+
+    async fn send_subscribe(&self, topic_name: &str) -> Result<(), UltraFastError> {
+        let topic_bytes = topic_name.as_bytes();
+        let mut writer_guard = self.writer.lock().await;
+        let writer = writer_guard
+            .as_mut()
+            .ok_or(UltraFastError::ConnectionFailed)?;
+
+        writer
+            .write_all(&[0x02])
+            .await
+            .map_err(|_| UltraFastError::ConnectionFailed)?;
+        writer
+            .write_u32_le(topic_bytes.len() as u32)
+            .await
+            .map_err(|_| UltraFastError::ConnectionFailed)?;
+        writer
+            .write_all(topic_bytes)
+            .await
+            .map_err(|_| UltraFastError::ConnectionFailed)?;
+        writer
+            .flush()
+            .await
+            .map_err(|_| UltraFastError::ConnectionFailed)?;
+
+        Ok(())
+    }
+
+    async fn wait_for_subscribe_ack(&self, _topic_name: &str) -> Result<(), UltraFastError> {
+        let mut reader_guard = self.reader.lock().await;
+        let reader = reader_guard
+            .as_mut()
+            .ok_or(UltraFastError::ConnectionFailed)?;
+
+        let ack_type = reader
+            .read_u8()
+            .await
+            .map_err(|_| UltraFastError::ConnectionFailed)?;
+        if ack_type != 0x03 {
+            return Err(UltraFastError::InvalidMessage);
+        }
+
+        let topic_len = reader
+            .read_u32_le()
+            .await
+            .map_err(|_| UltraFastError::ConnectionFailed)? as usize;
+        if topic_len > 1024 {
+            return Err(UltraFastError::InvalidMessage);
+        }
+
+        let mut topic_buf = vec![0u8; topic_len];
+        reader
+            .read_exact(&mut topic_buf)
+            .await
+            .map_err(|_| UltraFastError::ConnectionFailed)?;
+
+        Ok(())
+    }
+}
+
+fn broker_address_from_env() -> String {
+    if let Ok(url) = std::env::var("MESSAGE_BROKER_URL") {
+        let normalized = url
+            .trim()
+            .trim_start_matches("tcp://")
+            .trim_start_matches("http://")
+            .trim_start_matches("https://")
+            .to_string();
+        if !normalized.is_empty() {
+            return normalized;
+        }
+    }
+
+    let host = std::env::var("MESSAGE_BROKER_HOST").unwrap_or_else(|_| "localhost".to_string());
+    let port = std::env::var("MESSAGE_BROKER_PORT").unwrap_or_else(|_| "8080".to_string());
+    format!("{}:{}", host, port)
 }
 
 impl Drop for UltraFastSubscriber {
