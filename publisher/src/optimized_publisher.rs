@@ -279,7 +279,7 @@ impl OptimizedPublisher {
         if let Some(ref mut stream) = *connection {
             // Pre-allocate buffer for entire batch to minimize allocations
             let estimated_size: usize = sorted_messages.iter()
-                .map(|m| 8 + m.topic.len() + m.data.len())
+                .map(|m| 9 + m.topic.len() + m.data.len())
                 .sum();
             let mut batch_buffer = Vec::with_capacity(estimated_size);
             
@@ -287,6 +287,7 @@ impl OptimizedPublisher {
             for message in &sorted_messages {
                 let topic_bytes = message.topic.as_bytes();
                 
+                batch_buffer.push(0x01);
                 batch_buffer.extend_from_slice(&(topic_bytes.len() as u32).to_le_bytes());
                 batch_buffer.extend_from_slice(topic_bytes);
                 batch_buffer.extend_from_slice(&(message.data.len() as u32).to_le_bytes());
