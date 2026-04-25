@@ -1,0 +1,34 @@
+# =============================================================================
+# MessageBrokerEngine QA Environment Configuration
+# Production-like topology with reduced resources for testing
+# =============================================================================
+
+replicaCount: 1
+
+image:
+  pullPolicy: Always
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+config:
+  logging:
+    level: "INFO"
+    enable_file_logging: false
+  performance:
+    thread_pool_size: 4
+    message_queue_size: 50000
+    cache_size: 500
+
+persistence:
+  enabled: false
+  logs:
+    enabled: false
+
+autoscaling:
+  enabled: false
