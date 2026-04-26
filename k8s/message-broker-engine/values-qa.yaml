@@ -32,3 +32,7 @@ persistence:
 
 autoscaling:
   enabled: false
+
+# Redis state-sync disabled in QA — single replica, secret not provisioned in cluster
+redis:
+  enabled: false
