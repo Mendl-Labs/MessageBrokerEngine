@@ -86,6 +86,9 @@ class MessageBrokerE2E {
       let imagesChecked = 0;
 
       for (const pod of pods) {
+        if (pod.terminating) {
+          continue;
+        }
         if (!pod.image.startsWith(IMAGE_PREFIX)) {
           continue;
         }
