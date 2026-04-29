@@ -525,23 +525,15 @@ impl Publisher {
                         log_debug!(PUBLISHER_LOGGER, "Publishing market message to topic: {}", topic_owned);
                         let mut buf = Vec::new();
                         market_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
-
-                        let message = format!("MARKET:{}:", topic_owned).into_bytes();
-                        let mut full_message = message;
-                        full_message.extend_from_slice(&buf);
-
-                        inner.publish_raw(full_message, &topic_owned).await
+                        // Send raw protobuf bytes; broker routes by topic so the
+                        // ASCII type-prefix is unnecessary and breaks decoders.
+                        inner.publish_raw(buf, &topic_owned).await
                     },
                     protocol::generated::publish_request::Payload::PortfolioPayload(portfolio_msg) => {
                         log_debug!(PUBLISHER_LOGGER, "Publishing portfolio message to topic: {}", topic_owned);
                         let mut buf = Vec::new();
                         portfolio_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
-
-                        let message = format!("PORTFOLIO:{}:", topic_owned).into_bytes();
-                        let mut full_message = message;
-                        full_message.extend_from_slice(&buf);
-
-                        inner.publish_raw(full_message, &topic_owned).await
+                        inner.publish_raw(buf, &topic_owned).await
                     },
                     other => {
                         log_debug!(PUBLISHER_LOGGER, "Publishing generic message to topic: {}", topic_owned);
