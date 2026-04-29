@@ -505,7 +505,12 @@ impl Publisher {
             order.unique_id, order.symbol, order.exchange,
             order.price_level, order.quantity, order.side).into_bytes();
         let inner = Arc::clone(&self.inner);
-        let fut = async move { inner.publish_raw(data, "orders").await };
+        let fut = async move {
+            inner.publish_raw(data, "orders").await?;
+            // Sync wrapper publishes one-at-a-time; force flush so the message
+            // is sent immediately rather than waiting for batch_size to fill.
+            inner.flush().await
+        };
         Self::run_blocking(self.rt.as_ref(), fut)
     }
 
@@ -515,7 +520,7 @@ impl Publisher {
         let topic_owned = topic.to_string();
         let fut = async move {
             if let Some(payload) = request.payload {
-                match payload {
+                let res = match payload {
                     protocol::generated::publish_request::Payload::MarketPayload(market_msg) => {
                         log_debug!(PUBLISHER_LOGGER, "Publishing market message to topic: {}", topic_owned);
                         let mut buf = Vec::new();
@@ -544,7 +549,12 @@ impl Publisher {
                         let json_data = serde_json::to_vec(&rebuilt).map_err(|_| UltraFastError::SerializationFailed)?;
                         inner.publish_raw(json_data, &topic_owned).await
                     }
-                }
+                };
+                res?;
+                // Sync wrapper publishes one-at-a-time; force flush so each
+                // message reaches the broker immediately instead of sitting in
+                // the batch buffer (default batch_size=1000).
+                inner.flush().await
             } else {
                 Err(UltraFastError::SerializationFailed)
             }
