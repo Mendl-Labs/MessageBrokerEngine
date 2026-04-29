@@ -459,9 +459,16 @@ impl Publisher {
     pub fn new(config: PublisherConfig) -> Result<Self, UltraFastError> {
         let rt = tokio::runtime::Runtime::new()
             .map_err(|_| UltraFastError::SystemError)?;
-        
+
         let inner = Arc::new(UltraFastPublisher::new(config));
-        
+
+        // Eagerly establish the broker connection so that callers do not need
+        // to remember to call `start()` before publishing. Without this, every
+        // publish_raw() returns ConnectionFailed because is_connected is false.
+        let inner_for_connect = Arc::clone(&inner);
+        let connect_fut = async move { inner_for_connect.connect().await };
+        Self::run_blocking(Some(&rt), connect_fut)?;
+
         Ok(Self {
             inner,
             rt: Some(rt),
