@@ -469,84 +469,86 @@ impl Publisher {
     }
 
     pub fn start(&mut self) -> Result<(), UltraFastError> {
-        if let Some(ref rt) = self.rt {
-            rt.block_on(async {
-                self.inner.connect().await
-            })
+        let inner = Arc::clone(&self.inner);
+        let fut = async move { inner.connect().await };
+        Self::run_blocking(self.rt.as_ref(), fut)
+    }
+
+    /// Drive an async operation safely from sync code, whether or not we are
+    /// already inside a tokio runtime. When called from a tokio worker thread
+    /// (multi_thread runtime), uses `block_in_place` + the current `Handle`
+    /// to avoid the nested-runtime panic that `Runtime::block_on` would
+    /// otherwise produce.
+    fn run_blocking<F>(rt: Option<&tokio::runtime::Runtime>, fut: F) -> Result<(), UltraFastError>
+    where
+        F: std::future::Future<Output = Result<(), UltraFastError>> + Send,
+    {
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            tokio::task::block_in_place(|| handle.block_on(fut))
+        } else if let Some(rt) = rt {
+            rt.block_on(fut)
         } else {
             Err(UltraFastError::SystemError)
         }
     }
 
     pub fn publish_order(&mut self, _topic_idx: usize, order: Order) -> Result<(), UltraFastError> {
-        if let Some(ref rt) = self.rt {
-            // Serialize order to bytes (simplified)
-            let data = format!("ORDER:{}:{}:{}:{}:{}:{}", 
-                order.unique_id, order.symbol, order.exchange, 
-                order.price_level, order.quantity, order.side).into_bytes();
-            
-            rt.block_on(async {
-                self.inner.publish_raw(data, "orders").await
-            })
-        } else {
-            Err(UltraFastError::SystemError)
-        }
+        // Serialize order to bytes (simplified)
+        let data = format!("ORDER:{}:{}:{}:{}:{}:{}",
+            order.unique_id, order.symbol, order.exchange,
+            order.price_level, order.quantity, order.side).into_bytes();
+        let inner = Arc::clone(&self.inner);
+        let fut = async move { inner.publish_raw(data, "orders").await };
+        Self::run_blocking(self.rt.as_ref(), fut)
     }
 
     /// Generic publish method for protobuf messages (DataEngine compatibility)
     pub fn publish(&mut self, request: PublishRequest, topic: &str) -> Result<(), UltraFastError> {
-        if let Some(ref rt) = self.rt {
-            rt.block_on(async {
-                if let Some(ref payload) = request.payload {
-                    match payload {
-                        protocol::generated::publish_request::Payload::MarketPayload(market_msg) => {
-                            log_debug!(PUBLISHER_LOGGER, "Publishing market message to topic: {}", topic);
-                            // Serialize the protobuf message
-                            let mut buf = Vec::new();
-                            market_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
-                            
-                            // Add topic prefix for routing
-                            let message = format!("MARKET:{}:", topic).into_bytes();
-                            let mut full_message = message;
-                            full_message.extend_from_slice(&buf);
-                            
-                            self.inner.publish_raw(full_message, topic).await
-                        },
-                        protocol::generated::publish_request::Payload::PortfolioPayload(portfolio_msg) => {
-                            log_debug!(PUBLISHER_LOGGER, "Publishing portfolio message to topic: {}", topic);
-                            // Serialize the protobuf message
-                            let mut buf = Vec::new();
-                            portfolio_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
-                            
-                            // Add topic prefix for routing
-                            let message = format!("PORTFOLIO:{}:", topic).into_bytes();
-                            let mut full_message = message;
-                            full_message.extend_from_slice(&buf);
-                            
-                            self.inner.publish_raw(full_message, topic).await
-                        },
-                        _ => {
-                            log_debug!(PUBLISHER_LOGGER, "Publishing generic message to topic: {}", topic);
-                            // For other message types, serialize as JSON
-                            let json_data = serde_json::to_vec(&request).map_err(|_| UltraFastError::SerializationFailed)?;
-                            self.inner.publish_raw(json_data, topic).await
-                        }
+        let inner = Arc::clone(&self.inner);
+        let topic_owned = topic.to_string();
+        let fut = async move {
+            if let Some(payload) = request.payload {
+                match payload {
+                    protocol::generated::publish_request::Payload::MarketPayload(market_msg) => {
+                        log_debug!(PUBLISHER_LOGGER, "Publishing market message to topic: {}", topic_owned);
+                        let mut buf = Vec::new();
+                        market_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
+
+                        let message = format!("MARKET:{}:", topic_owned).into_bytes();
+                        let mut full_message = message;
+                        full_message.extend_from_slice(&buf);
+
+                        inner.publish_raw(full_message, &topic_owned).await
+                    },
+                    protocol::generated::publish_request::Payload::PortfolioPayload(portfolio_msg) => {
+                        log_debug!(PUBLISHER_LOGGER, "Publishing portfolio message to topic: {}", topic_owned);
+                        let mut buf = Vec::new();
+                        portfolio_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
+
+                        let message = format!("PORTFOLIO:{}:", topic_owned).into_bytes();
+                        let mut full_message = message;
+                        full_message.extend_from_slice(&buf);
+
+                        inner.publish_raw(full_message, &topic_owned).await
+                    },
+                    other => {
+                        log_debug!(PUBLISHER_LOGGER, "Publishing generic message to topic: {}", topic_owned);
+                        let rebuilt = PublishRequest { topic: topic_owned.clone(), payload: Some(other) };
+                        let json_data = serde_json::to_vec(&rebuilt).map_err(|_| UltraFastError::SerializationFailed)?;
+                        inner.publish_raw(json_data, &topic_owned).await
                     }
-                } else {
-                    Err(UltraFastError::SerializationFailed)
                 }
-            })
-        } else {
-            Err(UltraFastError::SystemError)
-        }
+            } else {
+                Err(UltraFastError::SerializationFailed)
+            }
+        };
+        Self::run_blocking(self.rt.as_ref(), fut)
     }
 
     pub fn stop(&mut self) {
-        if let Some(ref rt) = self.rt {
-            let _ = rt.block_on(async {
-                self.inner.disconnect().await
-            });
-        }
+        let inner = Arc::clone(&self.inner);
+        let fut = async move { inner.disconnect().await.map_err(|_| UltraFastError::SystemError) };
+        let _ = Self::run_blocking(self.rt.as_ref(), fut);
     }
 }
 
