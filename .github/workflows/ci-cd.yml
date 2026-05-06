@@ -53,7 +53,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.85.0
+          toolchain: 1.88.0
 
       - name: Cache Cargo
         uses: actions/cache@v4
@@ -113,19 +113,20 @@ jobs:
         run: echo "passed=true" >> "$GITHUB_OUTPUT"
 
       - name: Install cargo-tarpaulin
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: steps.check-skip.outputs.skip != 'true'
         run: cargo install cargo-tarpaulin --locked || true
 
       - name: Run Rust Coverage
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        continue-on-error: true
+        if: steps.check-skip.outputs.skip != 'true'
         run: |
           cd MessageBrokerEngine
-          cargo tarpaulin --workspace --out xml --output-dir ./coverage --timeout 300
+          cargo tarpaulin --workspace --out xml --output-dir ./coverage --timeout 300 --fail-under 95
+          echo "[OK] Coverage meets >=95% threshold"
 
       - name: Upload Coverage to Codecov
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: steps.check-skip.outputs.skip != 'true'
         uses: codecov/codecov-action@v5
+        continue-on-error: true
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: messagebrokerengine
