@@ -1,0 +1,31 @@
+[submodule "MessageBrokerEngine"]
+	path = MessageBrokerEngine
+	url = https://github.com/Nwagbara-Group-LLC/MessageBrokerEngine
+
+[submodule "BacktestingEngine"]
+	path = BacktestingEngine
+	url = https://github.com/Nwagbara-Group-LLC/BacktestingEngine
+
+[submodule "DataEngine"]
+	path = DataEngine
+	url = https://github.com/Nwagbara-Group-LLC/DataEngine
+
+[submodule "LoggingEngine"]
+	path = LoggingEngine
+	url = https://github.com/Nwagbara-Group-LLC/LoggingEngine
+
+[submodule "SignalEngine"]
+	path = SignalEngine
+	url = https://github.com/Nwagbara-Group-LLC/SignalEngine
+
+[submodule "SimulationEngine"]
+	path = SimulationEngine
+	url = https://github.com/Nwagbara-Group-LLC/SimulationEngine
+
+[submodule "databaseschema"]
+	path = databaseschema
+	url = https://github.com/Nwagbara-Group-LLC/databaseschema
+
+[submodule "redisutils"]
+	path = redisutils
+	url = https://github.com/Nwagbara-Group-LLC/redisutils
