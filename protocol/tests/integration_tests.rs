@@ -5,12 +5,8 @@ use protocol::{
 use uuid::Uuid;
 use prost::Message;
 use protocol::generated::{
-    PublishRequest as GeneratedPublishRequest, StrategyDeployment, StrategyDeactivation,
+    StrategyDeployment, StrategyDeactivation,
     StrategyDeploymentAck, DeploymentStatusResponse, ActiveStrategyInfo,
-    MarketDataSubscribe as GeneratedMarketDataSubscribe,
-    MarketDataUnsubscribe as GeneratedMarketDataUnsubscribe,
-    MarketDataSubscriptionAck as GeneratedMarketDataSubscriptionAck,
-    publish_request::Payload as GeneratedPayload,
 };
 
 // ── Compression tests ─────────────────────────────────────────────────────────
@@ -52,6 +48,7 @@ fn test_strategy_deployment_encode_decode() {
         risk_metrics: vec![],
         admin_approved: true,
         timestamp: 1_700_000_000,
+        mode: "paper".to_string(),
     };
 
     let mut buf = Vec::new();
@@ -190,6 +187,7 @@ fn test_publish_request_with_strategy_deployment_payload() {
         risk_metrics: vec![],
         admin_approved: false,
         timestamp: 1_700_100_000,
+        mode: "paper".to_string(),
     };
 
     let request = PublishRequest {
