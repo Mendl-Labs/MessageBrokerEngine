@@ -25,7 +25,7 @@ permissions:
 # ---------------------------------------------------------------------------
 env:
   COVERAGE_THRESHOLD: 95   # Minimum required line coverage (%)
-  RUST_VERSION: "1.85.0"
+  RUST_VERSION: "stable"
 
 # ===========================================================================
 # JOB 1 — MessageBrokerEngine (Rust)
@@ -82,7 +82,7 @@ jobs:
           echo "[OK] Tests passed"
 
       - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked || true
+        run: cargo install cargo-tarpaulin
 
       - name: Run coverage (tarpaulin)
         id: coverage
@@ -194,7 +194,7 @@ jobs:
 
       - name: Install cargo-tarpaulin
         if: steps.rust-check.outputs.is_rust == 'true'
-        run: cargo install cargo-tarpaulin --locked || true
+        run: cargo install cargo-tarpaulin
 
       - name: Run coverage
         id: coverage
