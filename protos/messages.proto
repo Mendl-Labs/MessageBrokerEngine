@@ -34,6 +34,28 @@ message Trades {
     repeated Trade trades = 1;
 }
 
+// Completed OHLCV bar built from accumulated trade ticks.
+message Bar {
+    string symbol       = 1;
+    string exchange     = 2;
+    double open         = 3;
+    double high         = 4;
+    double low          = 5;
+    double close        = 6;
+    double volume       = 7;
+    // Start of the bar window (Unix ms)
+    int64  bar_start_ms = 8;
+    // End of the bar window (Unix ms)
+    int64  bar_end_ms   = 9;
+    int32  trade_count  = 10;
+    // Bar resolution in seconds (e.g. 1 for 1-second bars)
+    int32  interval_secs = 11;
+}
+
+message Bars {
+    repeated Bar bars = 1;
+}
+
 message Quote {
     string symbol = 1;
     string exchange = 2;
@@ -111,11 +133,13 @@ message PortfolioMessage {
 message MarketMessage {
     string market_id = 1;
     oneof payload {
-        Trade trade = 2;
-        Quote quote = 3;
-        MarketData market_data = 4;
-        Orders orders_payload = 5;
-        Trades trades_payload = 6;
+        Trade      trade          = 2;
+        Quote      quote          = 3;
+        MarketData market_data    = 4;
+        Orders     orders_payload = 5;
+        Trades     trades_payload = 6;
+        // Completed OHLCV bar from tick accumulation
+        Bar        bar            = 7;
     }
 }
 
@@ -467,6 +491,9 @@ message PublishRequest {
         MarketDataSubscriptionAck market_data_subscription_ack = 28;
         MarketDataStatusRequest market_data_status_request = 29;
         MarketDataStatusResponse market_data_status_response = 30;
+        // Live bar aggregation events
+        Bar  bar  = 31;
+        Bars bars = 32;
     }
 }
 

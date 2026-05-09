@@ -53,6 +53,42 @@ pub struct Trades {
     pub trades: Vec<Trade>,
 }
 
+/// A completed OHLCV bar built from accumulated trade ticks.
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct Bar {
+    #[prost(string, tag = "1")]
+    pub symbol: String,
+    #[prost(string, tag = "2")]
+    pub exchange: String,
+    #[prost(double, tag = "3")]
+    pub open: f64,
+    #[prost(double, tag = "4")]
+    pub high: f64,
+    #[prost(double, tag = "5")]
+    pub low: f64,
+    #[prost(double, tag = "6")]
+    pub close: f64,
+    #[prost(double, tag = "7")]
+    pub volume: f64,
+    /// Start of the bar window (Unix ms)
+    #[prost(int64, tag = "8")]
+    pub bar_start_ms: i64,
+    /// End of the bar window (Unix ms)
+    #[prost(int64, tag = "9")]
+    pub bar_end_ms: i64,
+    #[prost(int32, tag = "10")]
+    pub trade_count: i32,
+    /// Bar resolution in seconds (e.g. 1 for 1-second bars)
+    #[prost(int32, tag = "11")]
+    pub interval_secs: i32,
+}
+
+#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
+pub struct Bars {
+    #[prost(message, repeated, tag = "1")]
+    pub bars: Vec<Bar>,
+}
+
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct Quote {
     #[prost(string, tag = "1")]
@@ -139,7 +175,7 @@ pub struct SystemStatus {
 pub struct PublishRequest {
     #[prost(string, tag = "1")]
     pub topic: String,
-    #[prost(oneof = "publish_request::Payload", tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30")]
+    #[prost(oneof = "publish_request::Payload", tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32")]
     pub payload: Option<publish_request::Payload>,
 }
 
@@ -210,6 +246,11 @@ pub mod publish_request {
         MarketDataStatusRequest(MarketDataStatusRequest),
         #[prost(message, tag = "30")]
         MarketDataStatusResponse(MarketDataStatusResponse),
+        // Live bar aggregation events
+        #[prost(message, tag = "31")]
+        Bar(Bar),
+        #[prost(message, tag = "32")]
+        Bars(Bars),
     }
 }
 
@@ -271,7 +312,7 @@ pub struct WalletData {
 pub struct MarketMessage {
     #[prost(string, tag = "1")]
     pub market_id: String,
-    #[prost(oneof = "market_message::Payload", tags = "2, 3, 4, 5, 6")]
+    #[prost(oneof = "market_message::Payload", tags = "2, 3, 4, 5, 6, 7")]
     pub payload: Option<market_message::Payload>,
 }
 
@@ -290,6 +331,9 @@ pub mod market_message {
         OrdersPayload(Orders),
         #[prost(message, tag = "6")]
         TradesPayload(Trades),
+        /// Completed OHLCV bar from tick accumulation
+        #[prost(message, tag = "7")]
+        Bar(Bar),
     }
 }
 
