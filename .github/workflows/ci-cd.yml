@@ -114,7 +114,7 @@ jobs:
 
       - name: Install cargo-tarpaulin
         if: steps.check-skip.outputs.skip != 'true'
-        run: cargo install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --force
 
       - name: Run Rust Coverage
         if: steps.check-skip.outputs.skip != 'true'
