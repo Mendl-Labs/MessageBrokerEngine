@@ -817,6 +817,10 @@ pub struct AssetInfo {
     /// Capital allocation weight (0.0 to 1.0)
     #[prost(double, tag = "4")]
     pub weight: f64,
+    /// Asset class for data-provider resolution: "crypto", "stocks", "forex".
+    /// Empty string defaults to crypto (backward-compatible with older senders).
+    #[prost(string, tag = "5")]
+    pub asset_class: String,
 }
 
 /// Request for workers to load data from database (no data payload over broker)

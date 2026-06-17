@@ -301,6 +301,9 @@ message AssetInfo {
     string exchange = 2;
     string strategy = 3;
     double weight = 4;
+    // Asset class for data-provider resolution: "crypto", "stocks", "forex".
+    // Empty string defaults to crypto (backward-compatible with older senders).
+    string asset_class = 5;
 }
 
 message ChromosomeEvalRequest {
