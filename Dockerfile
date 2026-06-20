@@ -77,7 +77,7 @@ COPY --from=build /bin/server /bin/server
 # Ensure the binary is executable
 RUN chmod +x /bin/server
 
-EXPOSE 3200
+EXPOSE 8080
 
 # Switch to non-privileged user
 USER appuser
