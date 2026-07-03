@@ -336,12 +336,18 @@ impl UltraFastSubscriber {
             let heartbeat = Arc::new(AtomicU64::new(self.last_heartbeat.load(Ordering::Relaxed)));
             let msg_count = Arc::new(AtomicU64::new(self.messages_received.load(Ordering::Relaxed)));
 
+            let writer = Arc::clone(&self.writer);
             tokio::spawn(async move {
                 let mut reader_half = {
                     let mut guard = reader.lock().await;
                     match guard.take() {
                         Some(r) => r,
-                        None => return,
+                        // Never connected (start() before any subscribe):
+                        // fall through to the reconnect path below.
+                        None => match Self::reconnect_and_resubscribe(&writer, &topics).await {
+                            Some(r) => r,
+                            None => return,
+                        },
                     }
                 };
 
@@ -350,29 +356,71 @@ impl UltraFastSubscriber {
                         break;
                     }
 
-                    let first = match reader_half.read_u8().await {
-                        Ok(b) => b,
-                        Err(_) => break,
-                    };
+                    // On ANY read failure the broker connection is gone (broker
+                    // restart, network partition). The old behavior was to
+                    // `break` and exit this task silently — the subscriber then
+                    // looked alive (get_message_from_topic polls empty queues)
+                    // but was deaf FOREVER; a broker pod restart caused a
+                    // multi-day silent market-data outage in production.
+                    // Instead: reconnect with backoff and replay every
+                    // SUBSCRIBE so the broker's fresh routing table knows us.
+                    macro_rules! read_or_reconnect {
+                        ($read:expr) => {
+                            match $read {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    log_warn_sync!(
+                                        &*logging_facade::SUBSCRIBER_LOGGER,
+                                        "Broker connection lost ({e:?}) — reconnecting and re-subscribing"
+                                    );
+                                    match Self::reconnect_and_resubscribe(&writer, &topics).await {
+                                        Some(r) => {
+                                            reader_half = r;
+                                            continue;
+                                        }
+                                        None => break,
+                                    }
+                                }
+                            }
+                        };
+                    }
+
+                    let first = read_or_reconnect!(reader_half.read_u8().await);
+
+                    // Framing-sanity failures also force a reconnect: a bad
+                    // length means the stream is desynced mid-frame, and no
+                    // amount of further reading recovers alignment.
+                    macro_rules! desync_reconnect {
+                        ($why:expr) => {{
+                            log_warn_sync!(
+                                &*logging_facade::SUBSCRIBER_LOGGER,
+                                "Broker stream desynced ({}) — reconnecting and re-subscribing",
+                                $why
+                            );
+                            match Self::reconnect_and_resubscribe(&writer, &topics).await {
+                                Some(r) => {
+                                    reader_half = r;
+                                    continue;
+                                }
+                                None => break,
+                            }
+                        }};
+                    }
 
                     // SUBSCRIBE_ACK frame from broker: [0x03][topic_len:u32][topic:bytes]
                     if first == 0x03 {
-                        let ack_len = match reader_half.read_u32_le().await {
-                            Ok(v) => v as usize,
-                            Err(_) => break,
-                        };
-                        let mut ack_topic = vec![0u8; ack_len];
-                        if reader_half.read_exact(&mut ack_topic).await.is_err() {
-                            break;
+                        let ack_len = read_or_reconnect!(reader_half.read_u32_le().await) as usize;
+                        if ack_len > 1024 {
+                            desync_reconnect!(format!("ack_len={}", ack_len));
                         }
+                        let mut ack_topic = vec![0u8; ack_len];
+                        read_or_reconnect!(reader_half.read_exact(&mut ack_topic).await);
                         continue;
                     }
 
                     // PUBLISH frame from broker: [topic_len:u32][topic][data_len:u32][data]
                     let mut len_rest = [0u8; 3];
-                    if reader_half.read_exact(&mut len_rest).await.is_err() {
-                        break;
-                    }
+                    read_or_reconnect!(reader_half.read_exact(&mut len_rest).await);
 
                     let topic_len = (first as u32)
                         | ((len_rest[0] as u32) << 8)
@@ -380,27 +428,20 @@ impl UltraFastSubscriber {
                         | ((len_rest[2] as u32) << 24);
                     let topic_len = topic_len as usize;
                     if topic_len == 0 || topic_len > 1024 {
-                        break;
+                        desync_reconnect!(format!("topic_len={}", topic_len));
                     }
 
                     let mut topic_buf = vec![0u8; topic_len];
-                    if reader_half.read_exact(&mut topic_buf).await.is_err() {
-                        break;
-                    }
+                    read_or_reconnect!(reader_half.read_exact(&mut topic_buf).await);
                     let topic = String::from_utf8_lossy(&topic_buf).to_string();
 
-                    let data_len = match reader_half.read_u32_le().await {
-                        Ok(v) => v as usize,
-                        Err(_) => break,
-                    };
+                    let data_len = read_or_reconnect!(reader_half.read_u32_le().await) as usize;
                     if data_len > 16 * 1024 * 1024 {
-                        break;
+                        desync_reconnect!(format!("data_len={}", data_len));
                     }
 
                     let mut data = vec![0u8; data_len];
-                    if reader_half.read_exact(&mut data).await.is_err() {
-                        break;
-                    }
+                    read_or_reconnect!(reader_half.read_exact(&mut data).await);
 
                     let message = UltraFastMessage::new(topic.clone(), data, msg_count.load(Ordering::Relaxed) + 1);
                     if let Some(queue) = topics.read().get(&topic) {
@@ -416,6 +457,79 @@ impl UltraFastSubscriber {
 
     pub fn stop(&self) {
         self.is_running.store(false, Ordering::Relaxed);
+    }
+
+    /// Re-establish the broker TCP connection and replay a SUBSCRIBE frame for
+    /// every topic this subscriber holds, returning the fresh read half.
+    ///
+    /// Called from the reader task whenever the connection drops (broker pod
+    /// restart, network partition) or the frame stream desyncs. The broker
+    /// keeps its routing table in memory only, so after a broker restart every
+    /// subscriber MUST re-send its SUBSCRIBEs or it receives nothing forever.
+    /// Retries with exponential backoff (1s → 30s cap) until it succeeds; the
+    /// reader task has no useful work to do without a connection.
+    ///
+    /// The new write half is installed into the shared writer slot while the
+    /// SUBSCRIBE frames are sent under the same lock, so concurrent
+    /// `subscribe_to_topic` calls cannot interleave partial frames.
+    async fn reconnect_and_resubscribe(
+        writer: &Arc<Mutex<Option<OwnedWriteHalf>>>,
+        topics: &Arc<RwLock<HashMap<String, Arc<SegQueue<UltraFastMessage>>>>>,
+    ) -> Option<OwnedReadHalf> {
+        let mut delay = Duration::from_secs(1);
+        loop {
+            let address = broker_address_from_env();
+            match TcpStream::connect(&address).await {
+                Ok(stream) => {
+                    let _ = stream.set_nodelay(true);
+                    let (read_half, write_half) = stream.into_split();
+
+                    let topic_names: Vec<String> = topics.read().keys().cloned().collect();
+                    let mut guard = writer.lock().await;
+                    *guard = Some(write_half);
+                    let w = guard.as_mut().expect("writer just installed");
+
+                    let mut ok = true;
+                    for t in &topic_names {
+                        let bytes = t.as_bytes();
+                        if w.write_all(&[0x02]).await.is_err()
+                            || w.write_u32_le(bytes.len() as u32).await.is_err()
+                            || w.write_all(bytes).await.is_err()
+                        {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if ok && w.flush().await.is_err() {
+                        ok = false;
+                    }
+                    drop(guard);
+
+                    if ok {
+                        log_info_sync!(
+                            &*logging_facade::SUBSCRIBER_LOGGER,
+                            "Reconnected to broker at {} and re-subscribed {} topic(s): {:?}",
+                            address,
+                            topic_names.len(),
+                            topic_names
+                        );
+                        return Some(read_half);
+                    }
+                    // Writes failed on the fresh socket — treat as a failed
+                    // attempt and back off.
+                }
+                Err(e) => {
+                    log_warn_sync!(
+                        &*logging_facade::SUBSCRIBER_LOGGER,
+                        "Broker reconnect to {} failed ({e}); retrying in {:?}",
+                        address,
+                        delay
+                    );
+                }
+            }
+            tokio::time::sleep(delay).await;
+            delay = (delay * 2).min(Duration::from_secs(30));
+        }
     }
 
     async fn ensure_connection(&self) -> Result<(), UltraFastError> {
