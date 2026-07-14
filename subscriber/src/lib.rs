@@ -9,11 +9,12 @@ use std::time::Duration;
 use std::collections::HashMap;
 
 use crossbeam::queue::SegQueue;
-use parking_lot::RwLock;
+use parking_lot::{Mutex as SyncMutex, RwLock};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 /// Cross-platform timestamp function optimized for ultra-low latency
 #[cfg(target_arch = "x86_64")]
@@ -193,6 +194,9 @@ pub struct UltraFastSubscriber {
     reader: Arc<Mutex<Option<OwnedReadHalf>>>,
     writer: Arc<Mutex<Option<OwnedWriteHalf>>>,
     reader_started: Arc<AtomicBool>,
+    // Handle to the currently-spawned reader task, so stop() can actually
+    // terminate it (see stop()'s doc comment for why this is necessary).
+    reader_task: Arc<SyncMutex<Option<JoinHandle<()>>>>,
 }
 
 impl Clone for UltraFastSubscriber {
@@ -207,6 +211,7 @@ impl Clone for UltraFastSubscriber {
             reader: Arc::clone(&self.reader),
             writer: Arc::clone(&self.writer),
             reader_started: Arc::clone(&self.reader_started),
+            reader_task: Arc::clone(&self.reader_task),
         }
     }
 }
@@ -223,6 +228,7 @@ impl UltraFastSubscriber {
             reader: Arc::new(Mutex::new(None)),
             writer: Arc::new(Mutex::new(None)),
             reader_started: Arc::new(AtomicBool::new(false)),
+            reader_task: Arc::new(SyncMutex::new(None)),
         }
     }
 
@@ -337,7 +343,7 @@ impl UltraFastSubscriber {
             let msg_count = Arc::new(AtomicU64::new(self.messages_received.load(Ordering::Relaxed)));
 
             let writer = Arc::clone(&self.writer);
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 let mut reader_half = {
                     let mut guard = reader.lock().await;
                     match guard.take() {
@@ -452,11 +458,39 @@ impl UltraFastSubscriber {
                     }
                 }
             });
+            *self.reader_task.lock() = Some(handle);
         }
     }
 
+    /// Stops the current reader task so a following `start()` genuinely
+    /// establishes a fresh connection, instead of `start()`'s one-shot
+    /// `reader_started` guard silently skipping the spawn (the actual bug
+    /// behind `Subscriber::reconnect()` being a permanent no-op: it called
+    /// `stop()` then `start()`, but `stop()` never reset that guard and the
+    /// running task's `running` flag was a disconnected local copy that
+    /// `is_running.store(false, ..)` never reached).
+    ///
+    /// The reader task only checks `is_running` in between reads (see the
+    /// loop in `start()`), so a read that's silently hung -- the peer
+    /// stopped sending but never closed or errored the socket, e.g. after
+    /// the broker forgot this subscriber's registration without dropping
+    /// the TCP connection -- never comes back around to observe that flag.
+    /// `abort()` is the only way to interrupt a blocked async read from the
+    /// outside: it drops the task (and with it, the task's owned socket
+    /// half), forcing a clean close.
     pub fn stop(&self) {
         self.is_running.store(false, Ordering::Relaxed);
+
+        if let Some(handle) = self.reader_task.lock().take() {
+            handle.abort();
+        }
+
+        // Let a following start() actually spawn a new reader task. Its
+        // cold-start path (self.reader is still None -- the old task took
+        // ownership of its read half and never returned it) goes through
+        // reconnect_and_resubscribe, establishing a real new connection and
+        // replaying every SUBSCRIBE, exactly like a fresh process boot.
+        self.reader_started.store(false, Ordering::SeqCst);
     }
 
     /// Re-establish the broker TCP connection and replay a SUBSCRIBE frame for
@@ -775,8 +809,11 @@ impl Subscriber {
         current_time.saturating_sub(last_heartbeat) > max_age_ns
     }
 
+    /// Tears down the current broker connection and establishes a fresh one,
+    /// replaying every SUBSCRIBE. Was a permanent no-op until UltraFastSubscriber's
+    /// stop()/start() were fixed to actually terminate and respawn the reader
+    /// task -- see stop()'s doc comment for the full explanation.
     pub fn reconnect(&mut self) -> Result<(), UltraFastError> {
-        // In a real implementation, this would reconnect to the broker
         self.inner.stop();
         self.inner.start();
         Ok(())
@@ -784,5 +821,65 @@ impl Subscriber {
 
     pub fn get_topic_name(&self, topic_idx: usize) -> Option<String> {
         self.topics.get(topic_idx).cloned()
+    }
+}
+
+#[cfg(test)]
+mod reconnect_tests {
+    use super::*;
+
+    // Regression coverage for the production incident where every subscriber's
+    // reconnect() had been a permanent no-op since its first successful start():
+    // stop() never reset the one-shot reader_started guard, so start()'s spawn
+    // was silently skipped forever after that. These tests reach into the
+    // private reader_started/reader_task fields (only possible from a test
+    // module in this same file) to prove the guard and task handle actually
+    // reset across a stop()/start() cycle, instead of just asserting no panic.
+
+    #[tokio::test]
+    async fn stop_resets_the_guard_and_clears_the_task_handle() {
+        let subscriber = UltraFastSubscriber::new(1);
+
+        subscriber.start();
+        assert!(subscriber.reader_started.load(Ordering::SeqCst));
+        assert!(subscriber.reader_task.lock().is_some());
+
+        subscriber.stop();
+        assert!(!subscriber.reader_started.load(Ordering::SeqCst));
+        assert!(subscriber.reader_task.lock().is_none());
+    }
+
+    #[tokio::test]
+    async fn start_after_stop_genuinely_respawns_the_reader_task() {
+        let subscriber = UltraFastSubscriber::new(1);
+
+        subscriber.start();
+        subscriber.stop();
+
+        // Before the fix, this second start() would have been a silent no-op:
+        // reader_started was already true and never got reset, so the
+        // compare_exchange guard skipped the spawn entirely.
+        subscriber.start();
+        assert!(subscriber.reader_started.load(Ordering::SeqCst));
+        assert!(subscriber.reader_task.lock().is_some());
+    }
+
+    #[tokio::test]
+    async fn subscriber_reconnect_respawns_across_repeated_calls() {
+        // Exercises the exact call site PortfolioHandler's 60s stale-connection
+        // watchdog uses in production (Subscriber::reconnect(), not the lower-
+        // level UltraFastSubscriber start/stop directly).
+        let config = ConnectionConfig::new("127.0.0.1:0");
+        let mut sub = Subscriber::new(config, &["test.topic"]).unwrap();
+
+        sub.start().unwrap();
+        assert!(sub.inner.reader_started.load(Ordering::SeqCst));
+        assert!(sub.inner.reader_task.lock().is_some());
+
+        for _ in 0..3 {
+            sub.reconnect().unwrap();
+            assert!(sub.inner.reader_started.load(Ordering::SeqCst));
+            assert!(sub.inner.reader_task.lock().is_some());
+        }
     }
 }
