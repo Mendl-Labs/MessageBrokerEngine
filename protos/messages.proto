@@ -371,6 +371,11 @@ message ChromosomeEvalResult {
     double avg_queue_position = 38;
     double partial_fill_pct = 39;
     double avg_latency_ms = 40;
+    // Fraction of trades whose fill size was capped by available bar volume
+    // rather than filling in full (0.0-1.0). A directional signal for
+    // whether this backtest already hit a liquidity ceiling at its
+    // configured position size.
+    double volume_constrained_pct = 41;
 }
 
 message DataBroadcastRequest {

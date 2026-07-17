@@ -754,6 +754,12 @@ pub struct ChromosomeEvalResult {
     /// Average latency in milliseconds
     #[prost(double, tag = "40")]
     pub avg_latency_ms: f64,
+    /// Fraction of trades whose fill size was capped by available bar volume
+    /// rather than filling in full (0.0-1.0). A directional signal for
+    /// whether this backtest already hit a liquidity ceiling at its
+    /// configured position size.
+    #[prost(double, tag = "41")]
+    pub volume_constrained_pct: f64,
 }
 
 /// Request to broadcast market data to all workers for caching
