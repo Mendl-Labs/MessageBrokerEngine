@@ -749,12 +749,21 @@ impl Subscriber {
     }
 
     pub fn start(&mut self) -> Result<(), UltraFastError> {
-        // Subscribe to all topics
-        for _topic in &self.topics {
-            // In a real implementation, this would establish network connections
-            // and begin receiving messages from the broker
+        // Actually register every topic with the underlying UltraFastSubscriber
+        // and send its SUBSCRIBE frame. This loop used to be a no-op stub, so
+        // `inner`'s `subscribed_topics` map was permanently empty: no SUBSCRIBE
+        // frame was ever sent, every incoming PUBLISH was silently dropped by
+        // the reader task (`topics.read().get(&topic)` always `None`), and
+        // every stale-connection reconnect logged "re-subscribed 0 topic(s):
+        // []" because there was truly nothing registered to resubscribe.
+        // `block_on` is safe here: this wrapper's `start()` is only ever
+        // invoked from `tokio::task::spawn_blocking` (e.g. PortfolioHandler's
+        // `listen()` in SignalEngine), never from a plain async worker thread.
+        let handle = tokio::runtime::Handle::current();
+        for topic in &self.topics {
+            handle.block_on(self.inner.subscribe_to_topic(topic))?;
         }
-        
+
         self.inner.start();
         Ok(())
     }
