@@ -43,6 +43,41 @@ fn get_rdtsc() -> u64 {
         .as_nanos() as u64
 }
 
+/// `get_rdtsc()`'s unit is architecture-dependent: raw CPU cycles on x86_64
+/// (via `_rdtsc()`), but already-real nanoseconds on aarch64/other (via
+/// `SystemTime`). Any code that treats a `get_rdtsc()` delta as nanoseconds
+/// directly is silently wrong on x86_64 -- production runs on x86_64, where
+/// a ~3 GHz TSC makes raw cycle counts numerically dwarf the nanosecond
+/// value they were assumed to be, in turn making any "has it been at least
+/// N ms" check based on that delta trip almost immediately regardless of N
+/// (confirmed live: `PortfolioHandler::is_stale`'s 5-minute threshold was
+/// firing on literally every 60-second check, a permanent reconnect loop).
+///
+/// Calibrated once, lazily, by sampling `get_rdtsc()` across a short real
+/// sleep and computing ticks-per-nanosecond -- on aarch64/other this
+/// naturally converges to ~1.0 (since `get_rdtsc()` already returns
+/// nanoseconds there), so the same calibration is correct on every
+/// architecture without a `#[cfg(target_arch)]` branch here. A one-time
+/// ~10ms startup cost, not a hot-path cost -- `get_rdtsc()` itself is
+/// unchanged and stays cheap for its other (per-message latency, unique-ID)
+/// uses.
+static RDTSC_TICKS_PER_NS: once_cell::sync::Lazy<f64> = once_cell::sync::Lazy::new(|| {
+    use std::time::Instant;
+    let calibration_duration = std::time::Duration::from_millis(10);
+    let start_tick = get_rdtsc();
+    let start_wall = Instant::now();
+    std::thread::sleep(calibration_duration);
+    let elapsed_ticks = get_rdtsc().saturating_sub(start_tick);
+    let elapsed_ns = start_wall.elapsed().as_nanos().max(1) as f64;
+    (elapsed_ticks as f64 / elapsed_ns).max(f64::MIN_POSITIVE)
+});
+
+/// Convert a `get_rdtsc()` delta (raw ticks) into real nanoseconds.
+#[inline]
+fn rdtsc_delta_to_ns(delta_ticks: u64) -> u64 {
+    (delta_ticks as f64 / *RDTSC_TICKS_PER_NS) as u64
+}
+
 // Ultra-fast error types for zero-allocation error handling
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum UltraFastError {
@@ -811,11 +846,17 @@ impl Subscriber {
     pub fn is_stale(&self, max_age_ms: u64) -> bool {
         let current_time = get_rdtsc();
         let last_heartbeat = self.inner.get_last_heartbeat();
-        
+
         // Convert max_age_ms to nanoseconds for comparison
         let max_age_ns = max_age_ms * 1_000_000;
-        
-        current_time.saturating_sub(last_heartbeat) > max_age_ns
+
+        // `current_time`/`last_heartbeat` are raw `get_rdtsc()` ticks, not
+        // nanoseconds -- must go through `rdtsc_delta_to_ns` before comparing
+        // against a real millisecond-derived threshold (see
+        // `RDTSC_TICKS_PER_NS`'s doc comment for why the naive tick delta was
+        // never comparable to `max_age_ns` on x86_64).
+        let elapsed_ticks = current_time.saturating_sub(last_heartbeat);
+        rdtsc_delta_to_ns(elapsed_ticks) > max_age_ns
     }
 
     /// Tears down the current broker connection and establishes a fresh one,
@@ -890,5 +931,66 @@ mod reconnect_tests {
             assert!(sub.inner.reader_started.load(Ordering::SeqCst));
             assert!(sub.inner.reader_task.lock().is_some());
         }
+    }
+}
+
+#[cfg(test)]
+mod rdtsc_stale_check_tests {
+    use super::*;
+
+    // Regression coverage for the production incident where PortfolioHandler's
+    // "Connection appears stale, attempting reconnect" fired on every 60s
+    // check regardless of the configured threshold (5 minutes at the time):
+    // `is_stale` compared a raw `get_rdtsc()` cycle delta directly against a
+    // millisecond-derived nanosecond threshold, with no conversion between
+    // the two. On x86_64 (raw TSC cycles, ~GHz-scale) any real elapsed time
+    // trips even a generously large "nanosecond" threshold almost instantly,
+    // since cycle counts are numerically far larger than the nanosecond
+    // values they were mistaken for.
+
+    #[test]
+    fn rdtsc_delta_to_ns_is_close_to_real_elapsed_time() {
+        use std::time::Instant;
+        let start_tick = get_rdtsc();
+        let start_wall = Instant::now();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let elapsed_ticks = get_rdtsc().saturating_sub(start_tick);
+        let elapsed_ns = start_wall.elapsed().as_nanos() as u64;
+
+        let converted_ns = rdtsc_delta_to_ns(elapsed_ticks);
+
+        // Generous tolerance (thread scheduling jitter, calibration noise) --
+        // this is a sanity check that the conversion lands in the right
+        // ballpark (i.e. tens of milliseconds, not micro/nanoseconds and not
+        // multi-second), not a precision guarantee.
+        let ratio = converted_ns as f64 / elapsed_ns.max(1) as f64;
+        assert!(
+            ratio > 0.5 && ratio < 2.0,
+            "converted_ns={converted_ns} elapsed_ns={elapsed_ns} ratio={ratio} -- \
+             rdtsc_delta_to_ns should track real elapsed time, not raw cycle count"
+        );
+    }
+
+    #[tokio::test]
+    async fn is_stale_is_false_immediately_after_construction() {
+        let config = ConnectionConfig::new("127.0.0.1:0");
+        let sub = Subscriber::new(config, &["test.topic"]).unwrap();
+
+        // Before the fix, a raw-cycle-vs-nanosecond unit mismatch made this
+        // return `true` (stale) almost immediately on x86_64, even right
+        // after construction, for any realistic threshold.
+        assert!(!sub.is_stale(300_000), "should not be stale immediately after construction");
+    }
+
+    #[tokio::test]
+    async fn is_stale_becomes_true_only_after_the_real_threshold_elapses() {
+        let config = ConnectionConfig::new("127.0.0.1:0");
+        let sub = Subscriber::new(config, &["test.topic"]).unwrap();
+
+        const THRESHOLD_MS: u64 = 50;
+        assert!(!sub.is_stale(THRESHOLD_MS), "fresh connection should not be stale");
+
+        std::thread::sleep(std::time::Duration::from_millis(THRESHOLD_MS * 3));
+        assert!(sub.is_stale(THRESHOLD_MS), "connection idle for 3x the threshold should be stale");
     }
 }
