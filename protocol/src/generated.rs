@@ -175,13 +175,13 @@ pub struct SystemStatus {
 pub struct PublishRequest {
     #[prost(string, tag = "1")]
     pub topic: String,
-    #[prost(oneof = "publish_request::Payload", tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32")]
+    #[prost(oneof = "publish_request::Payload", tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 25, 26, 27, 28, 29, 30, 31, 32")]
     pub payload: Option<publish_request::Payload>,
 }
 
 pub mod publish_request {
     use super::*;
-    
+
     #[derive(Clone, PartialEq, prost::Oneof, Serialize, Deserialize)]
     pub enum Payload {
         #[prost(message, tag = "2")]
@@ -211,28 +211,6 @@ pub mod publish_request {
         StrategyDeploymentAck(StrategyDeploymentAck),
         #[prost(message, tag = "14")]
         DeploymentStatusResponse(DeploymentStatusResponse),
-        // Distributed backtesting events
-        #[prost(message, tag = "15")]
-        BacktestChunk(BacktestChunk),
-        #[prost(message, tag = "16")]
-        BacktestChunkResult(BacktestChunkResult),
-        #[prost(message, tag = "17")]
-        BacktestProgress(BacktestProgress),
-        #[prost(message, tag = "18")]
-        BacktestCancelRequest(BacktestCancelRequest),
-        #[prost(message, tag = "19")]
-        BacktestAggregatedResult(BacktestAggregatedResult),
-        // Distributed genetic algorithm (GA) optimization events
-        #[prost(message, tag = "20")]
-        ChromosomeEvalRequest(ChromosomeEvalRequest),
-        #[prost(message, tag = "21")]
-        ChromosomeEvalResult(ChromosomeEvalResult),
-        #[prost(message, tag = "22")]
-        DataBroadcastRequest(DataBroadcastRequest),
-        #[prost(message, tag = "23")]
-        DataCacheAck(DataCacheAck),
-        #[prost(message, tag = "24")]
-        DataLoadRequest(DataLoadRequest),
         #[prost(message, tag = "25")]
         DeploymentStatusRequest(DeploymentStatusRequest),
         // Market data subscription events
@@ -284,7 +262,7 @@ pub struct PortfolioMessage {
 
 pub mod portfolio_message {
     use super::*;
-    
+
     #[derive(Clone, PartialEq, prost::Oneof, Serialize, Deserialize)]
     pub enum Payload {
         #[prost(message, tag = "2")]
@@ -318,7 +296,7 @@ pub struct MarketMessage {
 
 pub mod market_message {
     use super::*;
-    
+
     #[derive(Clone, PartialEq, prost::Oneof, Serialize, Deserialize)]
     pub enum Payload {
         #[prost(message, tag = "2")]
@@ -338,550 +316,15 @@ pub mod market_message {
 }
 
 // ============================================================================
-// DISTRIBUTED BACKTESTING MESSAGES
-// ============================================================================
-
-/// A chunk of work for distributed backtesting
-/// Workers subscribe to these and process them independently
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct BacktestChunk {
-    /// Unique identifier for the parent job
-    #[prost(string, tag = "1")]
-    pub job_id: String,
-    /// Unique identifier for this chunk
-    #[prost(int32, tag = "2")]
-    pub chunk_id: i32,
-    /// Total number of chunks for this job
-    #[prost(int32, tag = "3")]
-    pub total_chunks: i32,
-    /// Start timestamp (ISO8601 format)
-    #[prost(string, tag = "4")]
-    pub start_time: String,
-    /// End timestamp (ISO8601 format)
-    #[prost(string, tag = "5")]
-    pub end_time: String,
-    /// Trading symbol (e.g., "BTCUSDT")
-    #[prost(string, tag = "6")]
-    pub symbol: String,
-    /// Exchange name
-    #[prost(string, tag = "7")]
-    pub exchange: String,
-    /// Serialized strategy configuration (JSON)
-    #[prost(bytes, tag = "8")]
-    pub strategy_config: Vec<u8>,
-    /// Initial capital for this chunk
-    #[prost(double, tag = "9")]
-    pub initial_capital: f64,
-    /// Starting position from previous chunk (for continuity)
-    #[prost(double, tag = "10")]
-    pub starting_position: f64,
-    /// Starting cash from previous chunk
-    #[prost(double, tag = "11")]
-    pub starting_cash: f64,
-    /// Whether this is a Monte Carlo simulation run
-    #[prost(bool, tag = "12")]
-    pub is_monte_carlo: bool,
-    /// Monte Carlo run index (0 for non-MC runs)
-    #[prost(int32, tag = "13")]
-    pub monte_carlo_run: i32,
-    /// Chunk processing priority (higher = process first)
-    #[prost(int32, tag = "14")]
-    pub priority: i32,
-}
-
-/// Result from processing a single chunk
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct BacktestChunkResult {
-    /// Parent job ID
-    #[prost(string, tag = "1")]
-    pub job_id: String,
-    /// Chunk ID that was processed
-    #[prost(int32, tag = "2")]
-    pub chunk_id: i32,
-    /// Worker ID that processed this chunk
-    #[prost(string, tag = "3")]
-    pub worker_id: String,
-    /// Whether processing succeeded
-    #[prost(bool, tag = "4")]
-    pub success: bool,
-    /// Error message if failed
-    #[prost(string, tag = "5")]
-    pub error_message: String,
-    /// Net PnL for this chunk
-    #[prost(double, tag = "6")]
-    pub net_pnl: f64,
-    /// Gross profit for this chunk
-    #[prost(double, tag = "7")]
-    pub gross_profit: f64,
-    /// Gross loss for this chunk
-    #[prost(double, tag = "8")]
-    pub gross_loss: f64,
-    /// Number of trades executed
-    #[prost(int32, tag = "9")]
-    pub num_trades: i32,
-    /// Number of winning trades
-    #[prost(int32, tag = "10")]
-    pub winning_trades: i32,
-    /// Maximum drawdown observed
-    #[prost(double, tag = "11")]
-    pub max_drawdown: f64,
-    /// Total transaction costs
-    #[prost(double, tag = "12")]
-    pub transaction_costs: f64,
-    /// Ending position (for next chunk continuity)
-    #[prost(double, tag = "13")]
-    pub ending_position: f64,
-    /// Ending cash (for next chunk continuity)
-    #[prost(double, tag = "14")]
-    pub ending_cash: f64,
-    /// Daily returns (serialized as JSON for Sharpe calculation)
-    #[prost(bytes, tag = "15")]
-    pub daily_returns: Vec<u8>,
-    /// Number of events processed
-    #[prost(int64, tag = "16")]
-    pub events_processed: i64,
-    /// Processing duration in milliseconds
-    #[prost(int64, tag = "17")]
-    pub processing_duration_ms: i64,
-    /// Peak memory usage in bytes
-    #[prost(int64, tag = "18")]
-    pub peak_memory_bytes: i64,
-    /// Monte Carlo run index (for MC aggregation)
-    #[prost(int32, tag = "19")]
-    pub monte_carlo_run: i32,
-}
-
-/// Progress update for a distributed job
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct BacktestProgress {
-    /// Job ID
-    #[prost(string, tag = "1")]
-    pub job_id: String,
-    /// Number of chunks completed
-    #[prost(int32, tag = "2")]
-    pub chunks_completed: i32,
-    /// Total chunks in job
-    #[prost(int32, tag = "3")]
-    pub total_chunks: i32,
-    /// Percentage complete (0.0 - 100.0)
-    #[prost(float, tag = "4")]
-    pub percent_complete: f32,
-    /// Current phase (chunking, processing, aggregating)
-    #[prost(string, tag = "5")]
-    pub phase: String,
-    /// Estimated time remaining in seconds
-    #[prost(int64, tag = "6")]
-    pub estimated_remaining_secs: i64,
-    /// Running PnL aggregate (from completed chunks)
-    #[prost(double, tag = "7")]
-    pub running_pnl: f64,
-    /// Running trade count
-    #[prost(int32, tag = "8")]
-    pub running_trades: i32,
-}
-
-/// Request to cancel a distributed job
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct BacktestCancelRequest {
-    /// Job ID to cancel
-    #[prost(string, tag = "1")]
-    pub job_id: String,
-    /// Reason for cancellation
-    #[prost(string, tag = "2")]
-    pub reason: String,
-}
-
-/// Aggregated result from all chunks
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct BacktestAggregatedResult {
-    /// Job ID
-    #[prost(string, tag = "1")]
-    pub job_id: String,
-    /// Total net PnL
-    #[prost(double, tag = "2")]
-    pub total_net_pnl: f64,
-    /// Total gross profit
-    #[prost(double, tag = "3")]
-    pub total_gross_profit: f64,
-    /// Total gross loss
-    #[prost(double, tag = "4")]
-    pub total_gross_loss: f64,
-    /// Total number of trades
-    #[prost(int32, tag = "5")]
-    pub total_trades: i32,
-    /// Total winning trades
-    #[prost(int32, tag = "6")]
-    pub total_winning_trades: i32,
-    /// Win rate (0.0 - 1.0)
-    #[prost(float, tag = "7")]
-    pub win_rate: f32,
-    /// Profit factor
-    #[prost(float, tag = "8")]
-    pub profit_factor: f32,
-    /// Maximum drawdown across all chunks
-    #[prost(double, tag = "9")]
-    pub max_drawdown: f64,
-    /// Sharpe ratio (calculated from combined daily returns)
-    #[prost(float, tag = "10")]
-    pub sharpe_ratio: f32,
-    /// Sortino ratio
-    #[prost(float, tag = "11")]
-    pub sortino_ratio: f32,
-    /// Calmar ratio
-    #[prost(float, tag = "12")]
-    pub calmar_ratio: f32,
-    /// Total transaction costs
-    #[prost(double, tag = "13")]
-    pub total_transaction_costs: f64,
-    /// Total events processed
-    #[prost(int64, tag = "14")]
-    pub total_events: i64,
-    /// Total processing time in milliseconds
-    #[prost(int64, tag = "15")]
-    pub total_processing_time_ms: i64,
-    /// Number of workers used
-    #[prost(int32, tag = "16")]
-    pub num_workers: i32,
-    /// Number of chunks processed
-    #[prost(int32, tag = "17")]
-    pub chunks_processed: i32,
-    /// Number of chunks that failed
-    #[prost(int32, tag = "18")]
-    pub chunks_failed: i32,
-}
-
-// ============================================================================
-// DISTRIBUTED GENETIC ALGORITHM MESSAGES
-// ============================================================================
-
-/// Request to evaluate a chromosome on a remote worker
-/// Workers with cached data subscribe to these and return fitness results
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct ChromosomeEvalRequest {
-    /// Parent job ID
-    #[prost(string, tag = "1")]
-    pub job_id: String,
-    /// Generation number
-    #[prost(int32, tag = "2")]
-    pub generation: i32,
-    /// Chromosome index within generation
-    #[prost(int32, tag = "3")]
-    pub chromosome_id: i32,
-    /// Total chromosomes in this generation
-    #[prost(int32, tag = "4")]
-    pub total_chromosomes: i32,
-    /// Serialized chromosome parameters (JSON)
-    #[prost(bytes, tag = "5")]
-    pub chromosome_params: Vec<u8>,
-    /// Trading symbol for data lookup
-    #[prost(string, tag = "6")]
-    pub symbol: String,
-    /// Exchange for data lookup
-    #[prost(string, tag = "7")]
-    pub exchange: String,
-    /// Initial capital
-    #[prost(double, tag = "8")]
-    pub initial_capital: f64,
-    /// Data cache key (workers with this data cached process faster)
-    #[prost(string, tag = "9")]
-    pub data_cache_key: String,
-    /// If true, this is a final evaluation - run full backtest with all analysis
-    #[prost(bool, tag = "10")]
-    pub is_final_evaluation: bool,
-    /// Run Monte Carlo simulation (only used when is_final_evaluation=true)
-    #[prost(bool, tag = "11")]
-    pub run_monte_carlo: bool,
-    /// Run Walk-Forward analysis (only used when is_final_evaluation=true)
-    #[prost(bool, tag = "12")]
-    pub run_walk_forward: bool,
-    /// Train data end index (exclusive). GA fitness uses ticks [0, train_end_idx)
-    #[prost(int64, tag = "13")]
-    pub train_end_idx: i64,
-    /// Test data end index (exclusive). Walk-forward uses ticks [train_end_idx, test_end_idx)
-    #[prost(int64, tag = "14")]
-    pub test_end_idx: i64,
-    /// Total tick count. Final validation uses ticks [test_end_idx, total_ticks)
-    #[prost(int64, tag = "15")]
-    pub total_ticks: i64,
-    /// Custom fitness weights (JSON serialized, optional)
-    /// If empty, uses default balanced weights
-    #[prost(bytes, tag = "16")]
-    pub fitness_weights_json: Vec<u8>,
-    /// Initial 30-day trading volume in USD (for fee tier calculations)
-    /// 0.0 = use exchange default fee tier, higher values = lower fees
-    #[prost(double, tag = "17")]
-    pub initial_30d_volume: f64,
-    /// Percentage of initial_capital to hold as base asset (e.g., 0.5 = 50% in BTC, 50% in USD)
-    #[prost(double, tag = "18")]
-    pub initial_inventory_pct: f64,
-    /// Number of Monte Carlo simulation runs (default 1000, capped at 200 for speed)
-    #[prost(uint32, tag = "19")]
-    pub monte_carlo_runs: u32,
-    /// Strategy type: "market_making", "momentum", "mean_reversion"
-    /// Used to determine which chromosome type and evaluation logic to use
-    #[prost(string, tag = "20")]
-    pub strategy_type: String,
-    /// Multi-asset portfolio: list of all assets for portfolio backtests
-    /// When non-empty, workers should load and evaluate ALL assets
-    #[prost(message, repeated, tag = "21")]
-    pub assets: Vec<AssetInfo>,
-    /// Fraction of training data to use for evaluation (0.0-1.0, default 1.0)
-    /// Early generations use smaller subsamples for faster convergence
-    #[prost(double, tag = "22")]
-    pub subsample_ratio: f64,
-}
-
-/// Result from chromosome evaluation
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct ChromosomeEvalResult {
-    /// Parent job ID
-    #[prost(string, tag = "1")]
-    pub job_id: String,
-    /// Generation number
-    #[prost(int32, tag = "2")]
-    pub generation: i32,
-    /// Chromosome index
-    #[prost(int32, tag = "3")]
-    pub chromosome_id: i32,
-    /// Worker ID that processed this
-    #[prost(string, tag = "4")]
-    pub worker_id: String,
-    /// Whether evaluation succeeded
-    #[prost(bool, tag = "5")]
-    pub success: bool,
-    /// Error message if failed
-    #[prost(string, tag = "6")]
-    pub error_message: String,
-    /// Fitness score
-    #[prost(double, tag = "7")]
-    pub fitness: f64,
-    /// Net PnL
-    #[prost(double, tag = "8")]
-    pub net_pnl: f64,
-    /// Sharpe ratio
-    #[prost(double, tag = "9")]
-    pub sharpe_ratio: f64,
-    /// Number of trades
-    #[prost(int32, tag = "10")]
-    pub num_trades: i32,
-    /// Max drawdown
-    #[prost(double, tag = "11")]
-    pub max_drawdown: f64,
-    /// Equity curve (serialized as JSON)
-    #[prost(bytes, tag = "12")]
-    pub equity_curve: Vec<u8>,
-    /// Processing duration in milliseconds
-    #[prost(int64, tag = "13")]
-    pub processing_duration_ms: i64,
-    /// Win rate (percentage of profitable trades)
-    #[prost(double, tag = "14")]
-    pub win_rate: f64,
-    /// Profit factor (gross profit / gross loss)
-    #[prost(double, tag = "15")]
-    pub profit_factor: f64,
-    /// Number of closed trades
-    #[prost(int32, tag = "16")]
-    pub closed_trades: i32,
-    /// Total orders placed
-    #[prost(int32, tag = "17")]
-    pub total_orders: i32,
-    /// Starting capital
-    #[prost(double, tag = "18")]
-    pub starting_capital: f64,
-    /// Ending capital
-    #[prost(double, tag = "19")]
-    pub ending_capital: f64,
-    /// Total return percentage
-    #[prost(double, tag = "20")]
-    pub total_return_pct: f64,
-    /// Monte Carlo results (serialized JSON, populated when is_final_evaluation)
-    #[prost(bytes, tag = "21")]
-    pub monte_carlo_results: Vec<u8>,
-    /// Walk-forward results (serialized JSON, populated when is_final_evaluation)
-    #[prost(bytes, tag = "22")]
-    pub walk_forward_results: Vec<u8>,
-    /// Closed trades data (serialized JSON, populated when is_final_evaluation)
-    #[prost(bytes, tag = "23")]
-    pub closed_trades_data: Vec<u8>,
-    /// Indicates this is a final evaluation result with full data
-    #[prost(bool, tag = "24")]
-    pub is_final_evaluation: bool,
-    /// Statistical significance data (serialized JSON, populated when is_final_evaluation)
-    #[prost(string, tag = "25")]
-    pub statistical_significance: String,
-    /// Best trade P&L in USD
-    #[prost(double, tag = "26")]
-    pub best_trade_pnl: f64,
-    /// Worst trade P&L in USD
-    #[prost(double, tag = "27")]
-    pub worst_trade_pnl: f64,
-    /// Average trade P&L in USD
-    #[prost(double, tag = "28")]
-    pub avg_trade_pnl: f64,
-    /// Average time in trade in milliseconds
-    #[prost(double, tag = "29")]
-    pub avg_time_in_trade_ms: f64,
-    /// Total volume traded in USD
-    #[prost(double, tag = "30")]
-    pub total_volume: f64,
-    /// Total fees paid in USD
-    #[prost(double, tag = "31")]
-    pub total_fees: f64,
-    /// Inventory metrics (serialized JSON)
-    #[prost(bytes, tag = "32")]
-    pub inventory_metrics: Vec<u8>,
-    /// Execution metrics (serialized JSON)
-    #[prost(bytes, tag = "33")]
-    pub execution_metrics: Vec<u8>,
-    /// Average inventory over the backtest period
-    #[prost(double, tag = "34")]
-    pub avg_inventory: f64,
-    /// Max inventory held during backtest
-    #[prost(double, tag = "35")]
-    pub max_inventory: f64,
-    /// Inventory zero crossings (sign changes)
-    #[prost(int32, tag = "36")]
-    pub zero_crossings: i32,
-    /// Average fill rate (0.0-1.0)
-    #[prost(double, tag = "37")]
-    pub avg_fill_rate: f64,
-    /// Average queue position
-    #[prost(double, tag = "38")]
-    pub avg_queue_position: f64,
-    /// Partial fill percentage (0.0-100.0)
-    #[prost(double, tag = "39")]
-    pub partial_fill_pct: f64,
-    /// Average latency in milliseconds
-    #[prost(double, tag = "40")]
-    pub avg_latency_ms: f64,
-    /// Fraction of trades whose fill size was capped by available bar volume
-    /// rather than filling in full (0.0-1.0). A directional signal for
-    /// whether this backtest already hit a liquidity ceiling at its
-    /// configured position size.
-    #[prost(double, tag = "41")]
-    pub volume_constrained_pct: f64,
-}
-
-/// Request to broadcast market data to all workers for caching
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct DataBroadcastRequest {
-    /// Unique cache key for this dataset
-    #[prost(string, tag = "1")]
-    pub cache_key: String,
-    /// Trading symbol
-    #[prost(string, tag = "2")]
-    pub symbol: String,
-    /// Exchange
-    #[prost(string, tag = "3")]
-    pub exchange: String,
-    /// Number of data points
-    #[prost(int64, tag = "4")]
-    pub data_point_count: i64,
-    /// Compressed market data (using LZ4)
-    #[prost(bytes, tag = "5")]
-    pub compressed_data: Vec<u8>,
-    /// Compression algorithm used
-    #[prost(string, tag = "6")]
-    pub compression: String,
-    /// TTL in seconds (how long workers should cache this)
-    #[prost(int64, tag = "7")]
-    pub ttl_seconds: i64,
-}
-
-/// Acknowledgment that worker has cached the data
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct DataCacheAck {
-    /// Cache key that was stored
-    #[prost(string, tag = "1")]
-    pub cache_key: String,
-    /// Worker ID that cached it
-    #[prost(string, tag = "2")]
-    pub worker_id: String,
-    /// Whether caching succeeded
-    #[prost(bool, tag = "3")]
-    pub success: bool,
-    /// Number of concurrent evaluations this worker can handle
-    #[prost(int32, tag = "4")]
-    pub capacity: i32,
-    /// Number of ticks in the dataset (for train/test/validate splits)
-    #[prost(int64, tag = "5")]
-    pub tick_count: i64,
-}
-
-/// Asset information for multi-asset portfolio operations
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct AssetInfo {
-    /// Trading symbol (e.g., "BTCUSD", "ETHUSD")
-    #[prost(string, tag = "1")]
-    pub symbol: String,
-    /// Exchange name (e.g., "kraken", "binance")
-    #[prost(string, tag = "2")]
-    pub exchange: String,
-    /// Strategy type for this asset (optional): "momentum", "mean_reversion", "market_making"
-    #[prost(string, tag = "3")]
-    pub strategy: String,
-    /// Capital allocation weight (0.0 to 1.0)
-    #[prost(double, tag = "4")]
-    pub weight: f64,
-    /// Asset class for data-provider resolution: "crypto", "stocks", "forex".
-    /// Empty string defaults to crypto (backward-compatible with older senders).
-    #[prost(string, tag = "5")]
-    pub asset_class: String,
-}
-
-/// Request for workers to load data from database (no data payload over broker)
-/// 
-/// This is the preferred approach for large datasets. Instead of broadcasting
-/// the actual data over the message broker (which can be 500MB+), we send
-/// query parameters and workers load data directly from the database.
-/// 
-/// Benefits:
-/// - No serialization overhead (saves 10+ seconds)
-/// - No compression overhead (saves 3+ seconds)  
-/// - No 16MB message size limit issues
-/// - Workers can load in parallel from database
-/// - Memory efficient (no intermediate copies)
-#[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
-pub struct DataLoadRequest {
-    /// Unique cache key for this dataset (job-level key)
-    #[prost(string, tag = "1")]
-    pub cache_key: String,
-    /// Trading symbol(s) to load (legacy, use `assets` for multi-asset)
-    #[prost(string, repeated, tag = "2")]
-    pub symbols: Vec<String>,
-    /// Exchange name (legacy, use `assets` for multi-asset)
-    #[prost(string, tag = "3")]
-    pub exchange: String,
-    /// Start timestamp (ISO 8601 or Unix epoch seconds)
-    #[prost(string, tag = "4")]
-    pub start_time: String,
-    /// End timestamp (ISO 8601 or Unix epoch seconds)
-    #[prost(string, tag = "5")]
-    pub end_time: String,
-    /// TTL in seconds (how long workers should cache this)
-    #[prost(int64, tag = "6")]
-    pub ttl_seconds: i64,
-    /// Initial capital for position sizing
-    #[prost(double, tag = "7")]
-    pub initial_capital: f64,
-    /// Job ID for correlation
-    #[prost(string, tag = "8")]
-    pub job_id: String,
-    /// Multi-asset portfolio: list of all assets to load
-    /// If non-empty, takes precedence over symbols/exchange fields
-    #[prost(message, repeated, tag = "9")]
-    pub assets: Vec<AssetInfo>,
-}
-
-// ============================================================================
 // STRATEGY DEPLOYMENT MESSAGES
 // ============================================================================
-// These messages enable real-time deployment notifications from BacktestingEngine
-// to SignalEngine. Instead of SignalEngine polling the database, it subscribes
-// to deployment events and hot-loads/unloads strategies without restart.
+// These messages enable real-time deployment notifications from a strategy
+// orchestrator to a strategy runtime -- the runtime subscribes to deployment
+// events and hot-loads/unloads strategies without restart, instead of polling
+// a database.
 
-/// Strategy deployment event - sent when a strategy is approved and ready to deploy
-/// SignalEngine subscribes to topic: "strategy.deployment"
+/// Strategy deployment event - sent when a strategy is approved and ready to deploy.
+/// The strategy runtime subscribes to topic: "strategy.deployment"
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct StrategyDeployment {
     /// Strategy definition ID
@@ -937,8 +380,8 @@ pub struct StrategyDeployment {
     pub mode: String,
 }
 
-/// Strategy deactivation event - sent when a strategy is deactivated
-/// SignalEngine subscribes to topic: "strategy.deactivation"
+/// Strategy deactivation event - sent when a strategy is deactivated.
+/// The strategy runtime subscribes to topic: "strategy.deactivation"
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct StrategyDeactivation {
     /// Strategy definition ID
@@ -967,8 +410,8 @@ pub struct StrategyDeactivation {
     pub timestamp: i64,
 }
 
-/// Strategy deployment acknowledgment - sent by SignalEngine after processing
-/// BacktestingEngine subscribes to topic: "strategy.deployment.ack"
+/// Strategy deployment acknowledgment - sent by the strategy runtime after processing.
+/// The orchestrator subscribes to topic: "strategy.deployment.ack"
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct StrategyDeploymentAck {
     /// Strategy definition ID
@@ -977,7 +420,7 @@ pub struct StrategyDeploymentAck {
     /// Specific instance that was deployed
     #[prost(string, tag = "2")]
     pub instance_id: String,
-    /// SignalEngine node that deployed the strategy
+    /// Runtime node that deployed the strategy
     #[prost(string, tag = "3")]
     pub signal_engine_node: String,
     /// Whether deployment succeeded
@@ -994,8 +437,8 @@ pub struct StrategyDeploymentAck {
     pub active_exchanges: Vec<String>,
 }
 
-/// Bulk deployment status request - get status of all deployed strategies
-/// SignalEngine subscribes to topic: "strategy.status.request"
+/// Bulk deployment status request - get status of all deployed strategies.
+/// The strategy runtime subscribes to topic: "strategy.status.request"
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct DeploymentStatusRequest {
     /// Tenant ID to filter by (empty for all)
@@ -1006,14 +449,14 @@ pub struct DeploymentStatusRequest {
     pub request_id: String,
 }
 
-/// Deployed strategy status - response with all active strategies
+/// Deployed strategy status - response with all active strategies.
 /// Published to topic: "strategy.status.response"
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct DeploymentStatusResponse {
     /// Request ID for correlation
     #[prost(string, tag = "1")]
     pub request_id: String,
-    /// SignalEngine node responding
+    /// Runtime node responding
     #[prost(string, tag = "2")]
     pub signal_engine_node: String,
     /// List of active strategies
@@ -1075,19 +518,20 @@ pub struct ActiveStrategyInfo {
 // Market Data Subscription Messages
 // ============================================================================
 //
-// These messages enable demand-driven market data streaming. DataEngine only
-// connects to exchange WebSockets when SignalEngine has active strategies
-// that need specific symbols/exchanges.
+// These messages enable demand-driven market data streaming. A data feed
+// service only connects to exchange WebSockets when the strategy runtime has
+// active strategies that need specific symbols/exchanges.
 //
 // Flow:
-// 1. Strategy deployed → SignalEngine publishes MarketDataSubscribe
-// 2. DataEngine receives request → Connects to exchange WebSocket
-// 3. DataEngine streams data to MessageBroker → SignalEngine receives
-// 4. Strategy deactivated → SignalEngine publishes MarketDataUnsubscribe
-// 5. DataEngine disconnects (if no other subscribers for that symbol)
+// 1. Strategy deployed -> runtime publishes MarketDataSubscribe
+// 2. Data feed receives request -> connects to exchange WebSocket
+// 3. Data feed streams data to the broker -> runtime receives it
+// 4. Strategy deactivated -> runtime publishes MarketDataUnsubscribe
+// 5. Data feed disconnects (if no other subscribers for that symbol)
 
-/// Market data subscription request - published by SignalEngine when strategies need data
-/// DataEngine subscribes to topic: "market.subscription.subscribe"
+/// Market data subscription request - published by the strategy runtime when
+/// strategies need data. The data feed service subscribes to topic:
+/// "market.subscription.subscribe"
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct MarketDataSubscribe {
     /// Unique subscription ID for tracking
@@ -1116,8 +560,9 @@ pub struct MarketDataSubscribe {
     pub timestamp: i64,
 }
 
-/// Market data unsubscription request - published by SignalEngine when strategies stop
-/// DataEngine subscribes to topic: "market.subscription.unsubscribe"
+/// Market data unsubscription request - published by the strategy runtime
+/// when strategies stop. The data feed service subscribes to topic:
+/// "market.subscription.unsubscribe"
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct MarketDataUnsubscribe {
     /// Subscription ID to cancel (from original MarketDataSubscribe)
@@ -1140,8 +585,8 @@ pub struct MarketDataUnsubscribe {
     pub timestamp: i64,
 }
 
-/// Subscription acknowledgment - sent by DataEngine after processing subscription
-/// SignalEngine subscribes to topic: "market.subscription.ack"
+/// Subscription acknowledgment - sent by the data feed service after processing a subscription.
+/// The strategy runtime subscribes to topic: "market.subscription.ack"
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct MarketDataSubscriptionAck {
     /// Subscription ID being acknowledged
@@ -1153,7 +598,7 @@ pub struct MarketDataSubscriptionAck {
     /// Error message if failed
     #[prost(string, tag = "3")]
     pub error_message: String,
-    /// DataEngine node handling this subscription
+    /// Data feed node handling this subscription
     #[prost(string, tag = "4")]
     pub data_engine_node: String,
     /// Topics where data will be published
@@ -1164,8 +609,8 @@ pub struct MarketDataSubscriptionAck {
     pub timestamp: i64,
 }
 
-/// Active subscriptions status request
-/// DataEngine subscribes to topic: "market.subscription.status.request"
+/// Active subscriptions status request.
+/// The data feed service subscribes to topic: "market.subscription.status.request"
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct MarketDataStatusRequest {
     /// Request ID for correlation
@@ -1176,14 +621,14 @@ pub struct MarketDataStatusRequest {
     pub exchange_filter: String,
 }
 
-/// Active subscriptions status response
+/// Active subscriptions status response.
 /// Published to topic: "market.subscription.status.response"
 #[derive(Clone, PartialEq, Message, Serialize, Deserialize)]
 pub struct MarketDataStatusResponse {
     /// Request ID for correlation
     #[prost(string, tag = "1")]
     pub request_id: String,
-    /// DataEngine node responding
+    /// Data feed node responding
     #[prost(string, tag = "2")]
     pub data_engine_node: String,
     /// Active exchange connections

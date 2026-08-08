@@ -12,10 +12,6 @@ use crossbeam::queue::SegQueue;
 pub mod logging_facade;
 pub use logging_facade::PUBLISHER_LOGGER;
 
-// Import protocol types for DataEngine compatibility
-use protocol::generated::PublishRequest;
-use prost::Message;
-
 // Re-export optimized publisher
 pub mod optimized_publisher;
 pub use optimized_publisher::{OptimizedPublisher, BatchingConfig, BatchProcessor};
@@ -499,57 +495,19 @@ impl Publisher {
         }
     }
 
-    pub fn publish_order(&mut self, _topic_idx: usize, order: Order) -> Result<(), UltraFastError> {
-        // Serialize order to bytes (simplified)
-        let data = format!("ORDER:{}:{}:{}:{}:{}:{}",
-            order.unique_id, order.symbol, order.exchange,
-            order.price_level, order.quantity, order.side).into_bytes();
-        let inner = Arc::clone(&self.inner);
-        let fut = async move {
-            inner.publish_raw(data, "orders").await?;
-            // Sync wrapper publishes one-at-a-time; force flush so the message
-            // is sent immediately rather than waiting for batch_size to fill.
-            inner.flush().await
-        };
-        Self::run_blocking(self.rt.as_ref(), fut)
-    }
-
-    /// Generic publish method for protobuf messages (DataEngine compatibility)
-    pub fn publish(&mut self, request: PublishRequest, topic: &str) -> Result<(), UltraFastError> {
+    /// Publish an already-serialized payload to a topic, flushing immediately.
+    ///
+    /// Callers own their own wire format (protobuf, JSON, etc.) and topic naming;
+    /// this crate has no knowledge of specific message schemas.
+    pub fn publish(&mut self, data: Vec<u8>, topic: &str) -> Result<(), UltraFastError> {
         let inner = Arc::clone(&self.inner);
         let topic_owned = topic.to_string();
         let fut = async move {
-            if let Some(payload) = request.payload {
-                let res = match payload {
-                    protocol::generated::publish_request::Payload::MarketPayload(market_msg) => {
-                        log_debug!(PUBLISHER_LOGGER, "Publishing market message to topic: {}", topic_owned);
-                        let mut buf = Vec::new();
-                        market_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
-                        // Send raw protobuf bytes; broker routes by topic so the
-                        // ASCII type-prefix is unnecessary and breaks decoders.
-                        inner.publish_raw(buf, &topic_owned).await
-                    },
-                    protocol::generated::publish_request::Payload::PortfolioPayload(portfolio_msg) => {
-                        log_debug!(PUBLISHER_LOGGER, "Publishing portfolio message to topic: {}", topic_owned);
-                        let mut buf = Vec::new();
-                        portfolio_msg.encode(&mut buf).map_err(|_| UltraFastError::SerializationFailed)?;
-                        inner.publish_raw(buf, &topic_owned).await
-                    },
-                    other => {
-                        log_debug!(PUBLISHER_LOGGER, "Publishing generic message to topic: {}", topic_owned);
-                        let rebuilt = PublishRequest { topic: topic_owned.clone(), payload: Some(other) };
-                        let json_data = serde_json::to_vec(&rebuilt).map_err(|_| UltraFastError::SerializationFailed)?;
-                        inner.publish_raw(json_data, &topic_owned).await
-                    }
-                };
-                res?;
-                // Sync wrapper publishes one-at-a-time; force flush so each
-                // message reaches the broker immediately instead of sitting in
-                // the batch buffer (default batch_size=1000).
-                inner.flush().await
-            } else {
-                Err(UltraFastError::SerializationFailed)
-            }
+            inner.publish_raw(data, &topic_owned).await?;
+            // Sync wrapper publishes one-at-a-time; force flush so each
+            // message reaches the broker immediately instead of sitting in
+            // the batch buffer (default batch_size=1000).
+            inner.flush().await
         };
         Self::run_blocking(self.rt.as_ref(), fut)
     }
@@ -559,16 +517,4 @@ impl Publisher {
         let fut = async move { inner.disconnect().await.map_err(|_| UltraFastError::SystemError) };
         let _ = Self::run_blocking(self.rt.as_ref(), fut);
     }
-}
-
-// Order structure for compatibility
-#[derive(Debug, Clone)]
-pub struct Order {
-    pub unique_id: String,
-    pub symbol: String,
-    pub exchange: String,
-    pub price_level: f64,
-    pub quantity: f64,
-    pub side: String,
-    pub event: String,
 }

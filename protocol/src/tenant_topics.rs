@@ -19,16 +19,22 @@
 //! ```
 //!
 //! ## Standard Topic Names
+//!
+//! These are the conventional topic names for a strategy-runtime system built
+//! on this broker: one service deploys/manages strategies (the "orchestrator"),
+//! another runs them and streams market data in (the "runtime"), and a data
+//! feed service supplies market data on demand.
+//!
 //! | Base Topic | Direction | Description |
 //! |------------|-----------|-------------|
-//! | `strategy.deployment` | BE → SE | New strategy deployed |
-//! | `strategy.deactivation` | BE → SE | Strategy stopped/paused |
-//! | `strategy.deployment.ack` | SE → BE | Ack from SignalEngine |
-//! | `strategy.status.request` | BE → SE | Status query |
-//! | `strategy.status.response` | SE → BE | Status response |
-//! | `market.subscription.subscribe` | SE → DE | Request market data |
-//! | `market.subscription.unsubscribe` | SE → DE | Cancel market data |
-//! | `market.data.{exchange}.{symbol}` | DE → SE | Market data stream |
+//! | `strategy.deployment` | orchestrator → runtime | New strategy deployed |
+//! | `strategy.deactivation` | orchestrator → runtime | Strategy stopped/paused |
+//! | `strategy.deployment.ack` | runtime → orchestrator | Ack from the strategy runtime |
+//! | `strategy.status.request` | orchestrator → runtime | Status query |
+//! | `strategy.status.response` | runtime → orchestrator | Status response |
+//! | `market.subscription.subscribe` | runtime → data feed | Request market data |
+//! | `market.subscription.unsubscribe` | runtime → data feed | Cancel market data |
+//! | `market.data.{exchange}.{symbol}` | data feed → runtime | Market data stream |
 
 use uuid::Uuid;
 
@@ -94,32 +100,34 @@ pub fn tenant_wildcard(tenant_id: &str) -> String {
 // ============================================================================
 
 pub mod topics {
-    //! Standard base topic names used across engines.
-    
-    /// Strategy deployment events (BacktestingEngine → SignalEngine)
+    //! Standard base topic names for a strategy-deployment/market-data system
+    //! built on this broker. See the module-level doc table for the full
+    //! producer/consumer direction of each topic.
+
+    /// Strategy deployment events (orchestrator → runtime)
     pub const STRATEGY_DEPLOYMENT: &str = "strategy.deployment";
-    
-    /// Strategy deactivation events (BacktestingEngine → SignalEngine)
+
+    /// Strategy deactivation events (orchestrator → runtime)
     pub const STRATEGY_DEACTIVATION: &str = "strategy.deactivation";
-    
-    /// Deployment acknowledgments (SignalEngine → BacktestingEngine)
+
+    /// Deployment acknowledgments (runtime → orchestrator)
     pub const DEPLOYMENT_ACK: &str = "strategy.deployment.ack";
-    
-    /// Deployment status request (BacktestingEngine → SignalEngine)
+
+    /// Deployment status request (orchestrator → runtime)
     pub const STATUS_REQUEST: &str = "strategy.status.request";
-    
-    /// Deployment status response (SignalEngine → BacktestingEngine)
+
+    /// Deployment status response (runtime → orchestrator)
     pub const STATUS_RESPONSE: &str = "strategy.status.response";
-    
-    /// Market data subscription request (SignalEngine → DataEngine)
+
+    /// Market data subscription request (runtime → data feed)
     pub const MARKET_SUBSCRIBE: &str = "market.subscription.subscribe";
-    
-    /// Market data unsubscription (SignalEngine → DataEngine)
+
+    /// Market data unsubscription (runtime → data feed)
     pub const MARKET_UNSUBSCRIBE: &str = "market.subscription.unsubscribe";
-    
-    /// Market data subscription acknowledgment (DataEngine → SignalEngine)
+
+    /// Market data subscription acknowledgment (data feed → runtime)
     pub const MARKET_ACK: &str = "market.subscription.ack";
-    
+
     /// Format a market data stream topic for a specific exchange and symbol.
     ///
     /// Returns: `market.data.{exchange}.{symbol}`

@@ -24,9 +24,9 @@ A blazing-fast, sub-microsecond latency message broker engineered for high-frequ
 
 ## Overview
 
-MessageBrokerEngine is the inter-service communication backbone of the TradingPlatform. It:
+MessageBrokerEngine is a generic pub/sub message broker suitable as the inter-service communication backbone of a distributed trading platform. It:
 
-1. **Routes messages** between DataEngine and SignalEngine with sub-microsecond latency
+1. **Routes messages** between any number of publisher/subscriber services with sub-microsecond latency
 2. **Persists messages** via Write-Ahead Log (WAL) for crash recovery
 3. **Handles backpressure** with adaptive flow control
 4. **Supports patterns** including pub/sub, wildcards, and regex routing
@@ -72,14 +72,13 @@ MessageBrokerEngine is the inter-service communication backbone of the TradingPl
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           TRADING PLATFORM                                   │
+│                        DISTRIBUTED APPLICATION                               │
 │                                                                              │
 │   ┌──────────────┐                                     ┌──────────────┐     │
-│   │ SignalEngine │                                     │  DataEngine  │     │
+│   │  Service A   │                                     │  Service B   │     │
 │   │              │                                     │              │     │
 │   │ • Subscribe  │                                     │ • Subscribe  │     │
 │   │ • Publish    │                                     │ • Publish    │     │
-│   │   signals    │                                     │   market data│     │
 │   └──────┬───────┘                                     └──────┬───────┘     │
 │          │                                                    │             │
 │          │              ┌───────────────────┐                 │             │
@@ -166,13 +165,13 @@ Examples:
   signals.execution                   # Trading signals
 ```
 
-### TradingPlatform Topics
+### Example Topics
 
 | Topic | Publisher | Subscriber | Description |
 |-------|-----------|------------|-------------|
-| `market_data.subscriptions` | SignalEngine | DataEngine | Subscription requests |
-| `market_data.{exchange}.{symbol}` | DataEngine | SignalEngine | Real-time market data |
-| `signals.execution` | SignalEngine | (internal) | Trading signals |
+| `market_data.subscriptions` | consumer service | data feed service | Subscription requests |
+| `market_data.{exchange}.{symbol}` | data feed service | consumer service | Real-time market data |
+| `signals.execution` | strategy service | (internal) | Trading signals |
 
 ### Pattern Matching
 
@@ -261,46 +260,52 @@ threshold_bytes = 1024
 
 ## Protocol
 
-### Message Format (Protocol Buffers)
+### Wire Format
+
+The broker itself is payload-agnostic: `Publisher::publish()` takes an already-serialized `Vec<u8>` and a topic string, and has no knowledge of what's inside. The `protocol` crate ships one convenience schema, `PublishRequest` (Protocol Buffers via `prost`), used by the platform's own services:
 
 ```protobuf
-message BrokerMessage {
-  string topic = 1;
-  bytes payload = 2;
-  int64 timestamp = 3;
-  string message_id = 4;
-  map<string, string> headers = 5;
-}
-
 message PublishRequest {
-  repeated BrokerMessage messages = 1;
-}
-
-message SubscribeRequest {
-  string topic_pattern = 1;
-  bool use_regex = 2;
+  string topic = 1;
+  oneof payload {
+    Order order = 2;
+    Trade trade = 3;
+    Quote quote = 4;
+    ExecutionReport execution_report = 5;
+    RiskAlert risk_alert = 6;
+    SystemStatus system_status = 7;
+    bytes raw_data = 8;
+    PortfolioMessage portfolio_payload = 9;
+    MarketMessage market_payload = 10;
+    // ...plus strategy-deployment, market-data-subscription, and bar-aggregation variants
+  }
 }
 ```
+
+You are not required to use this schema — bring your own protobuf/JSON/whatever and pass the serialized bytes straight to `publish()`. `PublishRequest` exists so multiple platform services agree on one wire format for the message types they actually share; extend `protocol/src/generated.rs` (or `build.rs`'s `.proto` inputs) with your own variants as needed.
 
 ### Client Libraries
 
-**Publisher:**
+**Publisher** (`publisher` crate — synchronous API; internally drives its own connection):
 ```rust
-use messagebroker_publisher::Publisher;
+use publisher::{Publisher, PublisherConfig};
 
-let publisher = Publisher::connect("tcp://localhost:9000").await?;
-publisher.publish("market_data.kraken.XBTUSD", &data).await?;
+let mut publisher = Publisher::new(PublisherConfig::new("localhost:9000"))?;
+publisher.publish(data, "market_data.kraken.XBTUSD")?; // data: Vec<u8>
 ```
 
-**Subscriber:**
+**Subscriber** (`subscriber` crate — connect, register topics, then poll):
 ```rust
-use messagebroker_subscriber::Subscriber;
+use subscriber::{Subscriber, ConnectionConfig};
 
-let subscriber = Subscriber::connect("tcp://localhost:9000").await?;
-subscriber.subscribe("market_data.kraken.*").await?;
+let mut subscriber = Subscriber::new(
+    ConnectionConfig::new("localhost:9000"),
+    &["market_data.kraken.XBTUSD"],
+)?;
+subscriber.start()?;
 
-while let Some(msg) = subscriber.recv().await {
-    println!("Received: {:?}", msg);
+for (topic_idx, msg) in subscriber.poll_all_messages(100) {
+    println!("Received on topic {topic_idx}: {:?}", msg);
 }
 ```
 
@@ -466,3 +471,9 @@ curl http://localhost:9001/health
 2. Verify firewall rules
 3. Review max_connections setting
 4. Check for resource exhaustion
+
+---
+
+## License
+
+Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2) — see [LICENSE](LICENSE). Free for internal use, non-commercial research/education, and professional services; converts to Apache License 2.0 two years after each version's release.
