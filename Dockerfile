@@ -77,6 +77,12 @@ COPY --from=build /bin/server /bin/server
 # Ensure the binary is executable
 RUN chmod +x /bin/server
 
+# WALConfig defaults to the relative path "./wal" — give the process a real,
+# writable CWD instead of falling back to "/" (root-owned, unwritable by
+# appuser), which silently disabled WAL persistence.
+WORKDIR /app
+RUN mkdir -p /app/wal && chown -R appuser:appuser /app
+
 EXPOSE 8080
 
 # Switch to non-privileged user
