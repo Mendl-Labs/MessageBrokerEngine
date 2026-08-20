@@ -1,0 +1,7 @@
+# ultra-logger is a git dependency pinned to a tag (LoggingEngine) instead
+# of a local path. Cargo's own bundled libgit2 doesn't reliably pick up
+# the same credential helpers the `git` CLI already has configured --
+# shelling out to the real `git` binary for fetches avoids re-solving
+# credentials a second, different way.
+[net]
+git-fetch-with-cli = true
