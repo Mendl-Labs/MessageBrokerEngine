@@ -1,9 +1,11 @@
 use std::time::Duration;
 use std::sync::Arc;
 use serial_test::serial;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 
 use subscriber::{
-    UltraFastSubscriber, PerformanceStats, UltraFastMessage, 
+    UltraFastSubscriber, PerformanceStats, UltraFastMessage,
     ConnectionConfig, Subscriber, MessageHandler
 };
 
@@ -304,4 +306,159 @@ async fn test_memory_usage_patterns() {
     assert_eq!(messages[0].topic, "topic_0");
     assert_eq!(messages[500].topic, "topic_0"); // 500 % 10 = 0
     assert_eq!(messages[999].sequence, 999);
+}
+
+// ---------------------------------------------------------------------------
+// Regression coverage for the subscribe-after-start() fix (hardening pass,
+// 2026-08-27). Every test above this point constructs values or checks stats
+// -- none of them exercise a real TCP connection, so none of them could ever
+// have caught this. The bug only manifests once a topic is subscribed AFTER
+// start() has moved the read half into the background reader task.
+// ---------------------------------------------------------------------------
+
+/// Minimal fake broker speaking just enough of the real wire protocol for
+/// these tests: acks every SUBSCRIBE frame ([0x02][topic_len:u32 LE][topic])
+/// it receives with a SUBSCRIBE_ACK ([0x03][topic_len:u32 LE][topic]), and
+/// exposes a channel the test can use to push an arbitrary raw frame (e.g. a
+/// PUBLISH frame) to the connected client on demand. Reading and writing run
+/// as two separate tasks over owned, independent halves so the ACKs the
+/// reader produces and whatever the test pushes both funnel through the same
+/// mpsc channel onto the one write half, instead of needing a shared lock or
+/// `select!` (and the cancel-safety questions that would raise for
+/// `read_u8`/`read_u32_le`/`read_exact`).
+async fn spawn_fake_broker() -> (std::net::SocketAddr, tokio::sync::mpsc::Sender<Vec<u8>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (frame_tx, mut frame_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(16);
+    let ack_tx = frame_tx.clone();
+
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let (mut read_half, mut write_half) = stream.into_split();
+
+        let writer_task = tokio::spawn(async move {
+            while let Some(frame) = frame_rx.recv().await {
+                if write_half.write_all(&frame).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        loop {
+            let Ok(tag) = read_half.read_u8().await else { break };
+            if tag != 0x02 {
+                break;
+            }
+            let Ok(topic_len) = read_half.read_u32_le().await else { break };
+            let mut topic_buf = vec![0u8; topic_len as usize];
+            if read_half.read_exact(&mut topic_buf).await.is_err() {
+                break;
+            }
+            let mut ack = vec![0x03u8];
+            ack.extend_from_slice(&topic_len.to_le_bytes());
+            ack.extend_from_slice(&topic_buf);
+            if ack_tx.send(ack).await.is_err() {
+                break;
+            }
+        }
+        let _ = writer_task.await;
+    });
+
+    (addr, frame_tx)
+}
+
+/// Encodes a raw PUBLISH frame the fake broker can push to the client:
+/// [topic_len:u32 LE][topic][data_len:u32 LE][data] -- no leading type byte,
+/// matching the real reader loop's framing (subscriber/src/lib.rs).
+fn encode_publish_frame(topic: &str, data: &[u8]) -> Vec<u8> {
+    let topic_bytes = topic.as_bytes();
+    let mut frame = Vec::new();
+    frame.extend_from_slice(&(topic_bytes.len() as u32).to_le_bytes());
+    frame.extend_from_slice(topic_bytes);
+    frame.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    frame.extend_from_slice(data);
+    frame
+}
+
+// Regression: subscribing to a NEW topic after start() had already been
+// called failed unconditionally with ConnectionFailed -- start() moves the
+// read half into its own background reader task, so a later
+// subscribe_to_topic() had nothing left to read the SUBSCRIBE_ACK from
+// directly. Exactly the "one long-lived subscriber, topics added over its
+// lifetime" pattern a real caller (e.g. a per-run topic added as each new
+// client connects) needs, and the one usage pattern with zero prior coverage.
+#[tokio::test]
+#[serial]
+async fn subscribe_to_topic_after_start_succeeds_and_receives_messages() {
+    let (addr, publish_tx) = spawn_fake_broker().await;
+    std::env::set_var("MESSAGE_BROKER_URL", format!("{}", addr));
+
+    let subscriber = UltraFastSubscriber::new(1);
+
+    // Pre-start subscribe -- exercises the existing direct-read path, must
+    // keep working exactly as before.
+    subscriber.subscribe_to_topic("topic-a").await
+        .expect("pre-start subscribe should succeed");
+
+    subscriber.start();
+    // Reader task startup is async; give it a moment to begin its loop.
+    // subscribe_after_start itself doesn't depend on this (it only touches
+    // the shared writer and the pending_acks map), but without this the
+    // fake broker's ACK for topic-a has nowhere to land yet.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // Post-start subscribe -- this exact call used to fail unconditionally.
+    let result = subscriber.subscribe_to_topic("topic-b").await;
+    assert_eq!(result, Ok(()), "post-start subscribe must succeed, not ConnectionFailed");
+
+    // Confirm it's not just a fake success -- a real PUBLISH for the
+    // post-start topic must actually be delivered end to end.
+    publish_tx.send(encode_publish_frame("topic-b", b"hello")).await.unwrap();
+
+    let mut delivered = None;
+    for _ in 0..50 {
+        if let Some(msg) = subscriber.get_message_from_topic("topic-b") {
+            delivered = Some(msg);
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let msg = delivered.expect("message published on the post-start topic was never delivered");
+    assert_eq!(msg.get_data(), b"hello");
+
+    subscriber.stop();
+    std::env::remove_var("MESSAGE_BROKER_URL");
+}
+
+// A subscribe_to_topic() call that never gets acked (broker never responds)
+// must fail after the bounded wait, not hang the caller forever.
+#[tokio::test]
+#[serial]
+async fn subscribe_to_topic_after_start_times_out_when_broker_never_acks() {
+    // A listener that accepts but never reads/writes anything -- the client
+    // connects successfully, sends its SUBSCRIBE frame into the void, and
+    // never gets an ack for it.
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let _ = listener.accept().await;
+        // Hold the connection open, never respond.
+        std::future::pending::<()>().await;
+    });
+    std::env::set_var("MESSAGE_BROKER_URL", format!("{}", addr));
+
+    let subscriber = UltraFastSubscriber::new(2);
+    // No pre-start subscribe this time -- start() with zero topics still
+    // spawns the reader task (via its cold-start reconnect path).
+    subscriber.start();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    let result = tokio::time::timeout(
+        Duration::from_secs(10),
+        subscriber.subscribe_to_topic("never-acked"),
+    ).await.expect("subscribe_to_topic must return on its own bounded timeout, not hang");
+    assert_eq!(result, Err(subscriber::UltraFastError::ConnectionFailed));
+
+    subscriber.stop();
+    std::env::remove_var("MESSAGE_BROKER_URL");
 }

@@ -13,7 +13,7 @@ use parking_lot::{Mutex as SyncMutex, RwLock};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
-use tokio::sync::Mutex;
+use tokio::sync::{oneshot, Mutex};
 use tokio::task::JoinHandle;
 
 /// Cross-platform timestamp function optimized for ultra-low latency
@@ -232,6 +232,12 @@ pub struct UltraFastSubscriber {
     // Handle to the currently-spawned reader task, so stop() can actually
     // terminate it (see stop()'s doc comment for why this is necessary).
     reader_task: Arc<SyncMutex<Option<JoinHandle<()>>>>,
+    // Waiters for a SUBSCRIBE_ACK, keyed by topic -- see `subscribe_to_topic`'s
+    // doc comment for why this exists: once `start()` has taken ownership of
+    // the read half, the ack for a topic subscribed AFTER that point can only
+    // ever be observed by the running reader task, not by the caller trying
+    // to read it directly.
+    pending_acks: Arc<Mutex<HashMap<String, oneshot::Sender<()>>>>,
 }
 
 impl Clone for UltraFastSubscriber {
@@ -247,6 +253,7 @@ impl Clone for UltraFastSubscriber {
             writer: Arc::clone(&self.writer),
             reader_started: Arc::clone(&self.reader_started),
             reader_task: Arc::clone(&self.reader_task),
+            pending_acks: Arc::clone(&self.pending_acks),
         }
     }
 }
@@ -264,9 +271,24 @@ impl UltraFastSubscriber {
             writer: Arc::new(Mutex::new(None)),
             reader_started: Arc::new(AtomicBool::new(false)),
             reader_task: Arc::new(SyncMutex::new(None)),
+            pending_acks: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
+    /// Registers `topic_name` and blocks until the broker acks the
+    /// subscription (or the wait times out).
+    ///
+    /// FIX (hardening pass, 2026-08-27): calling this AFTER `start()` used to
+    /// fail every time with `ConnectionFailed`, unconditionally -- `start()`
+    /// takes ownership of the read half into its own background reader task
+    /// (see that method's doc comment), so `self.reader` is `None` by the
+    /// time a later `subscribe_to_topic` call tried to read the ACK directly
+    /// off it. There was no test coverage of this path at all (the existing
+    /// integration tests never call `start()` and `subscribe_to_topic`
+    /// together), so this shipped silently broken for exactly the "one
+    /// long-lived subscriber, topics added over its lifetime" usage pattern
+    /// a real caller needs -- a fixed startup-time topic list never hits it.
+    /// Now routes through the reader task itself when it's already running.
     pub async fn subscribe_to_topic(&self, topic_name: &str) -> Result<(), UltraFastError> {
         {
             let mut topics = self.subscribed_topics.write();
@@ -276,12 +298,42 @@ impl UltraFastSubscriber {
             }
         }
 
-        // Ensure the TCP connection is ready before sending SUBSCRIBE frames.
-        self.ensure_connection().await?;
-        self.send_subscribe(topic_name).await?;
-        self.wait_for_subscribe_ack(topic_name).await?;
-        
-        Ok(())
+        if self.reader_started.load(Ordering::SeqCst) {
+            self.subscribe_after_start(topic_name).await
+        } else {
+            // Nothing else is reading the socket yet -- safe (and necessary)
+            // to read the ACK directly.
+            self.ensure_connection().await?;
+            self.send_subscribe(topic_name).await?;
+            self.wait_for_subscribe_ack(topic_name).await
+        }
+    }
+
+    /// `subscribe_to_topic`'s path for when the reader task already owns the
+    /// read half: registers a one-shot waiter under `topic_name`, sends the
+    /// SUBSCRIBE frame (still safe -- only the read half moved into the
+    /// task, `self.writer` is untouched), then waits for the reader task's
+    /// own SUBSCRIBE_ACK branch to resolve it. Bounded by a timeout so a
+    /// dropped connection during the wait fails this call instead of hanging
+    /// it forever -- the topic is already recorded in `subscribed_topics` at
+    /// this point, so a subsequent reconnect still re-subscribes it for real
+    /// delivery even if this particular call reports a timeout.
+    async fn subscribe_after_start(&self, topic_name: &str) -> Result<(), UltraFastError> {
+        let (tx, rx) = oneshot::channel();
+        self.pending_acks.lock().await.insert(topic_name.to_string(), tx);
+
+        if let Err(e) = self.send_subscribe(topic_name).await {
+            self.pending_acks.lock().await.remove(topic_name);
+            return Err(e);
+        }
+
+        match tokio::time::timeout(Duration::from_secs(5), rx).await {
+            Ok(Ok(())) => Ok(()),
+            _ => {
+                self.pending_acks.lock().await.remove(topic_name);
+                Err(UltraFastError::ConnectionFailed)
+            }
+        }
     }
 
     pub async fn unsubscribe_from_topic(&self, topic_name: &str) -> Result<(), UltraFastError> {
@@ -378,6 +430,7 @@ impl UltraFastSubscriber {
             let msg_count = Arc::new(AtomicU64::new(self.messages_received.load(Ordering::Relaxed)));
 
             let writer = Arc::clone(&self.writer);
+            let pending_acks = Arc::clone(&self.pending_acks);
             let handle = tokio::spawn(async move {
                 let mut reader_half = {
                     let mut guard = reader.lock().await;
@@ -456,6 +509,18 @@ impl UltraFastSubscriber {
                         }
                         let mut ack_topic = vec![0u8; ack_len];
                         read_or_reconnect!(reader_half.read_exact(&mut ack_topic).await);
+                        // Resolve a subscribe_to_topic() call waiting on this
+                        // exact ack -- see subscribe_after_start(). No-op
+                        // (silently dropped) when nothing is waiting, which
+                        // is the common case: initial pre-start subscribes
+                        // read their own ack directly and never register here,
+                        // and a resubscribe-after-reconnect ack has no waiter
+                        // either (reconnect_and_resubscribe doesn't register
+                        // one, by design -- see that function's doc comment).
+                        let ack_topic_str = String::from_utf8_lossy(&ack_topic).to_string();
+                        if let Some(tx) = pending_acks.lock().await.remove(&ack_topic_str) {
+                            let _ = tx.send(());
+                        }
                         continue;
                     }
 
