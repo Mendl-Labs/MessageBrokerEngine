@@ -119,3 +119,5 @@ lib-cov
 .nyc_output
 # Local native build artifacts (e.g. pq.lib for libpq linking)
 build-libs/
+.claude/
+server-backups/
