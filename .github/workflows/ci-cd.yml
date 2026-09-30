@@ -48,7 +48,21 @@ jobs:
         with:
           repository: Mendl-Labs/LoggingEngine
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          ref: main
           path: LoggingEngine
+
+      # cargo's own git fetch of a private repo has no credential wired in this
+      # job (no .netrc, no global credential.helper) -- it only ever worked via
+      # a stale warm cargo-git-db cache. Patch ultra-logger to the checkout
+      # above instead of letting cargo fetch it again, same pattern already
+      # proven in BacktestingCore/databaseschema-internal's CI.
+      - name: Patch ultra-logger to the local LoggingEngine checkout
+        run: |
+          mkdir -p MessageBrokerEngine/.cargo
+          cat >> MessageBrokerEngine/.cargo/config.toml <<EOF
+          [patch."https://github.com/Mendl-Labs/LoggingEngine"]
+          ultra-logger = { path = "${{ github.workspace }}/LoggingEngine/ultra-logger" }
+          EOF
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
