@@ -46,7 +46,7 @@ jobs:
       - name: Checkout LoggingEngine
         uses: actions/checkout@v4
         with:
-          repository: Nwagbara-Group-LLC/LoggingEngine
+          repository: Mendl-Labs/LoggingEngine
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           path: LoggingEngine
 
@@ -150,7 +150,7 @@ jobs:
       - name: Checkout LoggingEngine
         uses: actions/checkout@v4
         with:
-          repository: Nwagbara-Group-LLC/LoggingEngine
+          repository: Mendl-Labs/LoggingEngine
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           path: LoggingEngine
           ref: main
