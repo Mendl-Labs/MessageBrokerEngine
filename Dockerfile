@@ -39,6 +39,12 @@ COPY MessageBrokerEngine/ ./MessageBrokerEngine/
 # Build from MessageBrokerEngine directory
 WORKDIR /app/MessageBrokerEngine
 
+# cargo's own git fetch of ultra-logger (a private repo) has no credential wired in this
+# build sandbox. Patch it to the LoggingEngine/ checkout already copied in above instead
+# of letting cargo fetch it again -- same pattern used in ci-cd.yml's Validate & Test job.
+RUN echo '[patch."https://github.com/Mendl-Labs/LoggingEngine"]' >> Cargo.toml && \
+    echo 'ultra-logger = { path = "/app/LoggingEngine/ultra-logger" }' >> Cargo.toml
+
 ENV RUSTFLAGS="-C target-cpu=x86-64-v3 -C opt-level=3 -C codegen-units=1 -C panic=abort"
 
 RUN cargo build --release && \
