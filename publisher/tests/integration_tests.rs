@@ -2,9 +2,10 @@ use std::time::Duration;
 use serial_test::serial;
 
 use publisher::{
-    UltraFastPublisher, PublisherConfig, PerformanceStats, MessagePriority, 
-    Publisher, Order, PendingMessage
+    UltraFastPublisher, PublisherConfig, PerformanceStats, MessagePriority,
+    Publisher, PendingMessage
 };
+use protocol::generated::Order;
 
 #[tokio::test]
 async fn test_performance_stats_creation() {

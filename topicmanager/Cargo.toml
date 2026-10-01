@@ -25,7 +25,7 @@ wildmatch = "2.3"
 fxhash = "0.2"
 redis = { version = "0.27", features = ["tokio-comp", "connection-manager"], optional = true }
 uuid = { version = "1.0", features = ["v4"], optional = true }
-ultra-logger = { git = "https://github.com/Nwagbara-Group-LLC/LoggingEngine", tag = "v0.1.0" }
+ultra-logger = { git = "https://github.com/Mendl-Labs/LoggingEngine", tag = "v0.1.0" }
 
 [features]
 default = []
