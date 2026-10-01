@@ -2,7 +2,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/nwagbara-group-llc/messagebroker-engine
+  repository: ghcr.io/mendl-labs/messagebroker-engine
   pullPolicy: IfNotPresent
 
 imagePullSecrets:
