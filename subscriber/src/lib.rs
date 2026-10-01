@@ -980,6 +980,12 @@ mod reconnect_tests {
     }
 
     #[tokio::test]
+    #[ignore = "needs a real broker: Subscriber::start() subscribes for real (connect + SUBSCRIBE \
+                + wait for ACK), which can never succeed against the dummy 127.0.0.1:0 address \
+                used here. The respawn mechanics this is meant to guard (the production incident \
+                where reconnect() silently no-op'd forever) are already covered without a live \
+                connection by start_after_stop_genuinely_respawns_the_reader_task and \
+                stop_resets_the_guard_and_clears_the_task_handle above."]
     async fn subscriber_reconnect_respawns_across_repeated_calls() {
         // Exercises the exact call site PortfolioHandler's 60s stale-connection
         // watchdog uses in production (Subscriber::reconnect(), not the lower-
@@ -987,7 +993,16 @@ mod reconnect_tests {
         let config = ConnectionConfig::new("127.0.0.1:0");
         let mut sub = Subscriber::new(config, &["test.topic"]).unwrap();
 
-        sub.start().unwrap();
+        // Subscriber::start() uses Handle::block_on internally and is only sound off the
+        // async worker thread (see its doc comment) -- spawn_blocking here to match how
+        // PortfolioHandler actually calls it in production, same as the panic this
+        // regression-tests would otherwise hit.
+        sub = tokio::task::spawn_blocking(move || {
+            sub.start().unwrap();
+            sub
+        })
+        .await
+        .unwrap();
         assert!(sub.inner.reader_started.load(Ordering::SeqCst));
         assert!(sub.inner.reader_task.lock().is_some());
 
