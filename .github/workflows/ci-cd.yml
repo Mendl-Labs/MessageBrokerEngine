@@ -25,7 +25,7 @@ permissions:
   security-events: write
 
 env:
-  IMAGE_NAME: ghcr.io/nwagbara-group-llc/messagebroker-engine
+  IMAGE_NAME: ghcr.io/mendl-labs/messagebroker-engine
   NAMESPACE: messagebroker
   HELM_CHART_PATH: k8s/message-broker-engine
   DOCKER_BUILDKIT: 1
@@ -52,14 +52,16 @@ jobs:
           path: LoggingEngine
 
       # cargo's own git fetch of a private repo has no credential wired in this
-      # job (no .netrc, no global credential.helper) -- it only ever worked via
-      # a stale warm cargo-git-db cache. Patch ultra-logger to the checkout
-      # above instead of letting cargo fetch it again, same pattern already
-      # proven in BacktestingCore/databaseschema-internal's CI.
+      # job (no .netrc, no global credential.helper). Patch ultra-logger to the
+      # checkout above instead of letting cargo fetch it again, same pattern
+      # already proven in BacktestingCore/databaseschema-internal's CI. This
+      # must go in Cargo.toml itself, NOT .cargo/config.toml -- [patch] is a
+      # manifest construct and is silently ignored in config.toml, which is
+      # why this previously only "worked" via a stale warm cargo-git-db cache
+      # masking the fact the patch was never actually taking effect.
       - name: Patch ultra-logger to the local LoggingEngine checkout
         run: |
-          mkdir -p MessageBrokerEngine/.cargo
-          cat >> MessageBrokerEngine/.cargo/config.toml <<EOF
+          cat >> MessageBrokerEngine/Cargo.toml <<EOF
           [patch."https://github.com/Mendl-Labs/LoggingEngine"]
           ultra-logger = { path = "${{ github.workspace }}/LoggingEngine/ultra-logger" }
           EOF
