@@ -183,9 +183,6 @@ impl IntelligentMessageRouter {
     }
     
     /// Find rules that match the given topic and conditions
-    // `% n == 0` rather than `is_multiple_of` (stable only since Rust 1.87): the workspace
-    // Docker builder pins Rust 1.85, which cannot compile `is_multiple_of`.
-    #[allow(clippy::manual_is_multiple_of)]
     fn find_matching_rules(&self, topic: &str, priority: u8, region: Option<&str>) -> Vec<String> {
         let pattern_start = std::time::Instant::now();
         let routes = self.routes.read();
@@ -215,7 +212,7 @@ impl IntelligentMessageRouter {
                 RoutingPattern::HashBased { pattern, partition_count } => {
                     if WildMatch::new(pattern).matches(topic) {
                         let hash = fxhash::hash(topic.as_bytes());
-                        (hash % partition_count) == 0 // Simple partitioning
+                        hash.is_multiple_of(*partition_count) // Simple partitioning
                     } else {
                         false
                     }

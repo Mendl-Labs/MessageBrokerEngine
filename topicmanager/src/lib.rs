@@ -249,11 +249,14 @@ impl UltraFastTopic {
     
     async fn send_batch_to_subscribers(&self, batch: &[Payload]) -> u64 {
         let start_time = get_rdtsc();
-        let subscribers = self.subscribers.read();
+        // Snapshot the subscribers and release the read lock before any await. Holding the
+        // guard across network I/O blocked subscribe/unsubscribe for the whole batch.
+        // Behaviour change: a subscriber removed mid-flush may still receive the in-flight batch.
+        let subscribers: Vec<Arc<UltraFastSubscriber>> = self.subscribers.read().values().cloned().collect();
         let mut total_sent = 0u64;
         
         for payload in batch {
-            for subscriber in subscribers.values() {
+            for subscriber in &subscribers {
                 if subscriber.is_active() {
                     match subscriber.send_message(payload).await {
                         Ok(bytes_sent) => {

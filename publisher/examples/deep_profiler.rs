@@ -276,7 +276,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[allow(clippy::manual_is_multiple_of)]
 fn generate_realistic_message(sequence: usize) -> Vec<u8> {
     // Generate realistic market data with variable size
     let base_size = 200 + (sequence % 300); // 200-500 bytes
@@ -287,7 +286,7 @@ fn generate_realistic_message(sequence: usize) -> Vec<u8> {
         r#"{{"type":"level3","sequence":{},"timestamp":"{}","product_id":"BTC-USD","side":"{}","order_id":"order_{}","size":"{:.8}","price":"{:.2}","maker_order_id":"maker_{}","remaining_size":"{:.8}"}}"#,
         sequence,
         chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ"),
-        if sequence % 2 == 0 { "buy" } else { "sell" },
+        if sequence.is_multiple_of(2) { "buy" } else { "sell" },
         sequence,
         0.001 + (sequence as f64 * 0.0001) % 1.0,
         45000.0 + (sequence as f64 * 0.1) % 2000.0,
@@ -345,14 +344,13 @@ fn simulate_queue_operations(message: &[u8]) {
     }
 }
 
-#[allow(clippy::manual_is_multiple_of)]
 async fn simulate_realistic_network_io(message: &[u8], sequence: usize) {
     // This simulates the network I/O that was our biggest bottleneck
     // in the previous performance test
     
     let base_network_delay = Duration::from_micros(100); // Base network stack overhead
     let size_factor = message.len() / 100; // Larger messages take longer
-    let congestion_factor = if sequence % 10 == 0 { 2 } else { 1 }; // Simulate network congestion
+    let congestion_factor = if sequence.is_multiple_of(10) { 2 } else { 1 }; // Simulate network congestion
     
     let network_delay = base_network_delay * (size_factor as u32 + congestion_factor);
     
