@@ -321,8 +321,8 @@ async fn test_protocol_module_exists() {
     // 1. The protocol module can be imported
     // 2. The build process works correctly
     // 3. Generated code compiles without errors
-    
-    assert!(true, "Protocol module is accessible");
+    //
+    // Reaching this point without panicking is itself the assertion.
 }
 
 #[test]

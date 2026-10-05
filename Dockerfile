@@ -3,7 +3,7 @@
 # Build context MUST be parent directory containing: MessageBrokerEngine/, LoggingEngine/
 # Build: docker build -f MessageBrokerEngine/Dockerfile -t messagebroker-engine:latest .
 
-ARG RUST_VERSION=1.85.0
+ARG RUST_VERSION=1.87.0
 ARG APP_NAME=program
 
 # Cache-busting args: when these change, Docker invalidates the cache for subsequent layers
@@ -52,10 +52,11 @@ RUN cargo build --release && \
 
 ################################################################################
 # Stage 2: Create a smaller runtime image
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
+    adduser \
     libc6 \
     net-tools \
     procps \
