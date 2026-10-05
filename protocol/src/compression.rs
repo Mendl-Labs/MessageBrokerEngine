@@ -88,19 +88,11 @@ impl CompressionStats {
     }
     
     pub fn average_compression_time_ns(&self) -> u64 {
-        if self.compressed_messages == 0 {
-            0
-        } else {
-            self.total_compression_time_ns / self.compressed_messages
-        }
+        self.total_compression_time_ns.checked_div(self.compressed_messages).unwrap_or(0)
     }
     
     pub fn average_decompression_time_ns(&self) -> u64 {
-        if self.compressed_messages == 0 {
-            0
-        } else {
-            self.total_decompression_time_ns / self.compressed_messages
-        }
+        self.total_decompression_time_ns.checked_div(self.compressed_messages).unwrap_or(0)
     }
     
     pub fn space_savings_bytes(&self) -> u64 {
