@@ -39,12 +39,12 @@ jobs:
       tests-passed: ${{ steps.test-result.outputs.passed || steps.skip-test-result.outputs.passed }}
     steps:
       - name: Checkout MessageBrokerEngine
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: MessageBrokerEngine
 
       - name: Checkout LoggingEngine
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Mendl-Labs/LoggingEngine
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
@@ -176,13 +176,13 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout MessageBrokerEngine
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: MessageBrokerEngine
           fetch-depth: 0
 
       - name: Checkout LoggingEngine
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: Mendl-Labs/LoggingEngine
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
@@ -309,7 +309,7 @@ jobs:
       RELEASE_NAME: messagebroker-engine
     steps:
       - name: Checkout MessageBrokerEngine
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: MessageBrokerEngine
 
@@ -463,7 +463,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout MessageBrokerEngine
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: MessageBrokerEngine
 
