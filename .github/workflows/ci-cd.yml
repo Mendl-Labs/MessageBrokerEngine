@@ -109,6 +109,24 @@ jobs:
           cargo build --workspace
           echo "[OK] Build passed!"
 
+      # Runs after the ultra-logger [patch] above and after Build Workspace, so
+      # clippy sees the exact same resolved dependency graph (incl. the local
+      # LoggingEngine checkout) that build/test already compiled against.
+      - name: Clippy Lint
+        run: |
+          cd MessageBrokerEngine
+          cargo clippy --workspace --all-targets -- -D warnings
+          echo "[OK] Clippy passed!"
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo-audit
+        run: |
+          cd MessageBrokerEngine
+          cargo audit
+          echo "[OK] cargo-audit passed!"
+
       - name: Run Tests
         if: steps.check-skip.outputs.skip != 'true'
         id: test-result
@@ -235,6 +253,17 @@ jobs:
           echo "[OK] Pushed image with tag: $SHORT_SHA (immutable SHA only)"
 
       - name: Security Scan
+        # NON-BLOCKING BY DESIGN (re-checked 2026-10-04): the latest green run on
+        # main (gh run 36863535965, build job) found 61 HIGH/CRITICAL findings
+        # (HIGH: 57, CRITICAL: 4) in the rust:1.85.0-slim-bookworm base image
+        # (debian 12.15) -- e.g. bsdutils/libblkid1 CVE-2026-53613/-76642/-78408/
+        # -78409/-78410 and gzip CVE-2026-41992, most with status "affected" or
+        # "fix_deferred" and no Fixed Version available upstream yet. These are
+        # OS-package CVEs inherited from the base image, not app-level issues
+        # this repo controls by itself, so making the gate blocking today would
+        # fail every build with no actionable fix. Re-run this check once the
+        # base image has fixed packages (or a slimmer/distroless base is
+        # adopted) before flipping continue-on-error/exit-code to blocking.
         continue-on-error: true
         run: |
           SHORT_SHA="${{ github.sha }}"
