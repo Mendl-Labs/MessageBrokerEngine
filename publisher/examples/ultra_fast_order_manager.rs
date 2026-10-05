@@ -208,7 +208,7 @@ impl UltraFastOrderManager {
     pub fn get_performance_report(&self) -> PerformanceReport {
         let orders = self.orders_processed.load(Ordering::Relaxed);
         let total_ns = self.total_time_ns.load(Ordering::Relaxed);
-        let avg_ns = if orders > 0 { total_ns / orders } else { 0 };
+        let avg_ns = total_ns.checked_div(orders).unwrap_or(0);
         
         PerformanceReport {
             orders_processed: orders,

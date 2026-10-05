@@ -293,6 +293,8 @@ impl UltraFastTopic {
     }
 }
 
+// async_trait adds its own #[must_use] to methods that already return #[must_use] Result.
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait TopicManager: Send + Sync {
     async fn create_topic(&self, topic_name: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;

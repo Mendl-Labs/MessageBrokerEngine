@@ -271,7 +271,7 @@ impl OptimizedPublisher {
         
         // Sort by priority for optimal processing order
         let mut sorted_messages = messages_to_send;
-        sorted_messages.sort_by(|a, b| b.priority.cmp(&a.priority));
+        sorted_messages.sort_by_key(|m| std::cmp::Reverse(m.priority));
         
         let total_bytes;
         

@@ -343,8 +343,7 @@ async fn spawn_fake_broker() -> (std::net::SocketAddr, tokio::sync::mpsc::Sender
             }
         });
 
-        loop {
-            let Ok(tag) = read_half.read_u8().await else { break };
+        while let Ok(tag) = read_half.read_u8().await {
             if tag != 0x02 {
                 break;
             }

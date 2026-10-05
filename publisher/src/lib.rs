@@ -369,7 +369,7 @@ impl UltraFastPublisher {
         }
 
         // Sort by priority (critical first)
-        messages_to_send.sort_by(|a, b| b.priority.cmp(&a.priority));
+        messages_to_send.sort_by_key(|m| std::cmp::Reverse(m.priority));
 
         let mut connection = self.connection.write().await;
         if let Some(ref mut stream) = *connection {

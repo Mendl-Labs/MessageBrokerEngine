@@ -338,7 +338,7 @@ impl UltraFastMetrics {
         let rejections = self.rejected_connections.load(Ordering::Relaxed);
         
         let total_time = self.total_latency_ns.load(Ordering::Relaxed);
-        let avg_time = if messages > 0 { total_time / messages } else { 0 };
+        let avg_time = total_time.checked_div(messages).unwrap_or(0);
         
         let cache_hits = self.cache_hits.load(Ordering::Relaxed);
         let cache_misses = self.cache_misses.load(Ordering::Relaxed);
