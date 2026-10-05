@@ -242,7 +242,7 @@ jobs:
             --tag ${{ env.IMAGE_NAME }}:$SHORT_SHA \
             --file MessageBrokerEngine/Dockerfile \
             --build-arg LOGGING_ENGINE_SHA=$LOGGING_SHA \
-            --build-arg RUST_VERSION=1.85.0 \
+            --build-arg RUST_VERSION=1.87.0 \
             --progress=plain \
             .
 

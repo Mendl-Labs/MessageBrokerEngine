@@ -336,13 +336,10 @@ impl AdaptiveCompressor {
     }
     
     /// Compress using adaptive algorithm selection
-    // `x % 10 == 0` rather than `is_multiple_of` (stable only since Rust 1.87): the
-    // Docker builder pins Rust 1.85, which fails to compile `is_multiple_of`.
-    #[allow(clippy::manual_is_multiple_of)]
     pub fn compress(&mut self, data: &[u8]) -> Result<(Vec<u8>, CompressionAlgorithm), CompressionError> {
         if self.sample_count < self.decision_threshold {
             // During sampling phase, try both algorithms on every 10th message
-            if self.sample_count % 10 == 0 {
+            if self.sample_count.is_multiple_of(10) {
                 let _ = self.gzip_compressor.compress(data)?;
                 let _ = self.lz4_compressor.compress(data)?;
             }
