@@ -52,7 +52,7 @@ RUN cargo build --release && \
 
 ################################################################################
 # Stage 2: Create a smaller runtime image
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
