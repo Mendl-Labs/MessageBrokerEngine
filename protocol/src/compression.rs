@@ -104,11 +104,8 @@ impl CompressionStats {
     }
     
     pub fn space_savings_bytes(&self) -> u64 {
-        if self.total_original_bytes >= self.total_compressed_bytes {
-            self.total_original_bytes - self.total_compressed_bytes
-        } else {
-            0
-        }
+        self.total_original_bytes
+            .saturating_sub(self.total_compressed_bytes)
     }
     
     pub fn space_savings_percentage(&self) -> f32 {
@@ -223,7 +220,7 @@ impl MessageCompressor {
             Ok(payload.to_vec())
         };
         
-        if let Ok(_) = decompressed_result {
+        if decompressed_result.is_ok() {
             let decompression_time = start_time.elapsed();
             self.compression_stats.total_decompression_time_ns += decompression_time.as_nanos() as u64;
         }
@@ -318,6 +315,12 @@ pub struct AdaptiveCompressor {
     decision_threshold: usize,
 }
 
+impl Default for AdaptiveCompressor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AdaptiveCompressor {
     pub fn new() -> Self {
         let gzip_config = CompressionConfig {
@@ -344,7 +347,7 @@ impl AdaptiveCompressor {
     pub fn compress(&mut self, data: &[u8]) -> Result<(Vec<u8>, CompressionAlgorithm), CompressionError> {
         if self.sample_count < self.decision_threshold {
             // During sampling phase, try both algorithms on every 10th message
-            if self.sample_count % 10 == 0 {
+            if self.sample_count.is_multiple_of(10) {
                 let _ = self.gzip_compressor.compress(data)?;
                 let _ = self.lz4_compressor.compress(data)?;
             }
@@ -420,7 +423,7 @@ mod tests {
         
         assert_eq!(original_data, decompressed.as_slice());
         // Compressed data should include header byte
-        assert!(compressed.len() >= 1);
+        assert!(!compressed.is_empty());
     }
     
     #[test]
