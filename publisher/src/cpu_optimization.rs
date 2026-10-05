@@ -231,7 +231,7 @@ impl CpuOptimizer {
                 // Execute the function
                 f()
             })
-            .map_err(|e| CpuAffinityError::ThreadSpawnError(e))?;
+            .map_err(CpuAffinityError::ThreadSpawnError)?;
         
         Ok(handle)
     }
@@ -260,7 +260,7 @@ impl CpuOptimizer {
                 // Execute the function
                 f()
             })
-            .map_err(|e| CpuAffinityError::ThreadSpawnError(e))?;
+            .map_err(CpuAffinityError::ThreadSpawnError)?;
         
         Ok(handle)
     }
@@ -319,7 +319,7 @@ pub enum CpuAffinityError {
 macro_rules! pin_publisher_thread {
     ($optimizer:expr) => {
         if let Err(e) = $optimizer.pin_publisher_thread() {
-            log_warn!(crate::logging_facade::PUBLISHER_LOGGER, "Failed to pin thread: {:?}", e);
+            log_warn!($crate::logging_facade::PUBLISHER_LOGGER, "Failed to pin thread: {:?}", e);
         }
     };
 }
@@ -329,7 +329,7 @@ macro_rules! pin_publisher_thread {
 macro_rules! pin_network_thread {
     ($optimizer:expr) => {
         if let Err(e) = $optimizer.pin_network_thread() {
-            log_warn!(crate::logging_facade::PUBLISHER_LOGGER, "Failed to pin thread: {:?}", e);
+            log_warn!($crate::logging_facade::PUBLISHER_LOGGER, "Failed to pin thread: {:?}", e);
         }
     };
 }

@@ -417,13 +417,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[allow(clippy::manual_is_multiple_of)]
 fn generate_market_data(sequence: usize) -> Vec<u8> {
     let message = format!(
-        r#"{{"type":"level3","seq":{},"ts":"{}","product":"BTC-USD","side":"{}","oid":"{}","size":"{:.8}","price":"{:.2}","time":{}}}"#,
+        r#"{{"type":"level3","seq":{},"ts":"{}","product":"BTC-USD","side":"{}","oid":"order_{}","size":"{:.8}","price":"{:.2}","time":{}}}"#,
         sequence,
         chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ"),
         if sequence % 2 == 0 { "buy" } else { "sell" },
-        format!("order_{}", sequence),
+        sequence,
         0.01 + (sequence as f64 * 0.001) % 1.0,
         45000.0 + (sequence as f64 * 0.1) % 1000.0,
         chrono::Utc::now().timestamp_millis()

@@ -15,9 +15,9 @@ async fn test_broker_config_default() {
     assert_eq!(config.port, 8080);
     assert_eq!(config.max_connections, 1000);
     assert_eq!(config.worker_threads, 4);
-    assert_eq!(config.tcp_nodelay, true);
-    assert_eq!(config.socket_reuse, true);
-    assert_eq!(config.keepalive, true);
+    assert!(config.tcp_nodelay);
+    assert!(config.socket_reuse);
+    assert!(config.keepalive);
 }
 
 #[tokio::test]
@@ -30,11 +30,11 @@ async fn test_broker_config_ultra_performance() {
     assert_eq!(config.max_connections, 50000);
     assert_eq!(config.worker_threads, 64);
     assert_eq!(config.read_buffer_size, 1048576); // 1MB
-    assert_eq!(config.tcp_nodelay, true);
-    assert_eq!(config.socket_reuse, true);
-    assert_eq!(config.keepalive, true);
-    assert_eq!(config.busy_poll, true);
-    assert_eq!(config.use_huge_pages, true);
+    assert!(config.tcp_nodelay);
+    assert!(config.socket_reuse);
+    assert!(config.keepalive);
+    assert!(config.busy_poll);
+    assert!(config.use_huge_pages);
 }
 
 #[tokio::test]

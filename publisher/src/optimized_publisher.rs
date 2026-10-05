@@ -295,12 +295,12 @@ impl OptimizedPublisher {
             }
             
             // Single write call for entire batch
-            if let Err(_) = stream.write_all(&batch_buffer).await {
+            if stream.write_all(&batch_buffer).await.is_err() {
                 inner.is_connected.store(false, Ordering::Relaxed);
                 return Err(UltraFastError::NetworkError);
             }
             
-            if let Err(_) = stream.flush().await {
+            if stream.flush().await.is_err() {
                 inner.is_connected.store(false, Ordering::Relaxed);
                 return Err(UltraFastError::NetworkError);
             }

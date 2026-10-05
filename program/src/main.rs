@@ -133,6 +133,9 @@ impl UltraProductionBroker {
         Ok(())
     }
     
+    // `% n == 0` rather than `is_multiple_of` (stable only since Rust 1.87): the workspace
+    // Docker builder pins Rust 1.85, which cannot compile `is_multiple_of`.
+    #[allow(clippy::manual_is_multiple_of)]
     pub async fn publish(&self, message: UltraMessage) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.messages_processed.fetch_add(1, Ordering::Relaxed);
         self.bytes_processed.fetch_add(message.payload.len() as u64, Ordering::Relaxed);

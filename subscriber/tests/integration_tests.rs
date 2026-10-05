@@ -86,8 +86,7 @@ async fn test_ultra_fast_message_data_integrity() {
 async fn test_ultra_fast_subscriber_creation() {
     let _subscriber = UltraFastSubscriber::new(42);
     
-    // Test subscriber creation doesn't panic
-    assert!(true); // Placeholder - subscriber created successfully
+    // Test subscriber creation doesn't panic: reaching this point without panicking is the assertion.
 }
 
 #[tokio::test]
@@ -103,10 +102,10 @@ async fn test_connection_config_creation() {
     
     assert_eq!(config.address, "127.0.0.1");
     assert_eq!(config.port, 8080);
-    assert_eq!(config.tcp_nodelay, true);
+    assert!(config.tcp_nodelay);
     assert_eq!(config.receive_buffer_size, 64 * 1024);
     assert_eq!(config.connection_timeout, Duration::from_secs(10));
-    assert_eq!(config.keepalive, true);
+    assert!(config.keepalive);
 }
 
 #[tokio::test]
@@ -115,10 +114,10 @@ async fn test_connection_config_new_method() {
     
     assert_eq!(config.address, "192.168.1.1");
     assert_eq!(config.port, 9000);
-    assert_eq!(config.tcp_nodelay, true);
+    assert!(config.tcp_nodelay);
     assert_eq!(config.receive_buffer_size, 65536);
     assert_eq!(config.connection_timeout, Duration::from_secs(5));
-    assert_eq!(config.keepalive, true);
+    assert!(config.keepalive);
 }
 
 #[tokio::test]
@@ -127,7 +126,7 @@ async fn test_connection_config_default_port() {
     
     assert_eq!(config.address, "localhost");
     assert_eq!(config.port, 8080); // Default port
-    assert_eq!(config.tcp_nodelay, true);
+    assert!(config.tcp_nodelay);
 }
 
 #[tokio::test]

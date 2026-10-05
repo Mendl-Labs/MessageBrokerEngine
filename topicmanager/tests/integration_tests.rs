@@ -184,7 +184,7 @@ async fn test_high_load_topic_names() {
 
 #[tokio::test]
 async fn test_topic_name_ordering() {
-    let names = vec!["aaa", "bbb", "ccc", "zzz"];
+    let names = ["aaa", "bbb", "ccc", "zzz"];
     let mut topics: Vec<FixedTopicName> = names
         .iter()
         .map(|name| FixedTopicName::new(name).unwrap())

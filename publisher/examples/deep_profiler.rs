@@ -276,6 +276,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[allow(clippy::manual_is_multiple_of)]
 fn generate_realistic_message(sequence: usize) -> Vec<u8> {
     // Generate realistic market data with variable size
     let base_size = 200 + (sequence % 300); // 200-500 bytes
@@ -344,6 +345,7 @@ fn simulate_queue_operations(message: &[u8]) {
     }
 }
 
+#[allow(clippy::manual_is_multiple_of)]
 async fn simulate_realistic_network_io(message: &[u8], sequence: usize) {
     // This simulates the network I/O that was our biggest bottleneck
     // in the previous performance test

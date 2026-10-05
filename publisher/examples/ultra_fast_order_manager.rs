@@ -55,6 +55,12 @@ pub struct UltraFastOrderManager {
     max_time_ns: AtomicU64,
 }
 
+impl Default for UltraFastOrderManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UltraFastOrderManager {
     pub fn new() -> Self {
         info!("🚀 Initializing ULTRA-FAST Order Manager");
