@@ -16,6 +16,9 @@ use tokio::net::TcpStream;
 use tokio::sync::{oneshot, Mutex};
 use tokio::task::JoinHandle;
 
+/// Topic name -> per-topic message queue, shared between the reader and reconnect paths.
+type SubscribedTopics = RwLock<HashMap<String, Arc<SegQueue<UltraFastMessage>>>>;
+
 /// Cross-platform timestamp function optimized for ultra-low latency
 #[cfg(target_arch = "x86_64")]
 #[inline(always)]
@@ -608,7 +611,7 @@ impl UltraFastSubscriber {
     /// `subscribe_to_topic` calls cannot interleave partial frames.
     async fn reconnect_and_resubscribe(
         writer: &Arc<Mutex<Option<OwnedWriteHalf>>>,
-        topics: &Arc<RwLock<HashMap<String, Arc<SegQueue<UltraFastMessage>>>>>,
+        topics: &Arc<SubscribedTopics>,
     ) -> Option<OwnedReadHalf> {
         let mut delay = Duration::from_secs(1);
         loop {

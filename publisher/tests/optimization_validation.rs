@@ -64,7 +64,7 @@ async fn test_zero_copy_message_builder() {
     
     assert!(message.is_some());
     let message_buffer = message.unwrap();
-    assert!(message_buffer.len() > 0);
+    assert!(!message_buffer.is_empty());
     
     // Return buffer to pool
     pool.return_buffer(message_buffer);
@@ -110,11 +110,11 @@ async fn test_pool_statistics() {
     let total_returned = stats.total_returned();
     let memory_efficiency = stats.memory_efficiency();
     
-    assert!(hit_rate >= 0.0 && hit_rate <= 1.0);
+    assert!((0.0..=1.0).contains(&hit_rate));
     // Total allocated and returned are usize, always >= 0, so just check they exist
     let _ = total_allocated; // Use the values
     let _ = total_returned;
-    assert!(memory_efficiency >= 0.0 && memory_efficiency <= 1.0);
+    assert!((0.0..=1.0).contains(&memory_efficiency));
     
     println!("✅ Pool statistics test passed");
     println!("   Hit rate: {:.2}%", hit_rate * 100.0);
@@ -191,7 +191,7 @@ async fn test_comprehensive_optimization_integration() {
         builder.build().expect("Should build message successfully")
     };
     
-    assert!(test_message.len() > 0);
+    assert!(!test_message.is_empty());
     buffer_pool.return_buffer(test_message);
     
     println!("✅ Comprehensive optimization integration test passed");

@@ -105,7 +105,6 @@ pub static MEMORY_LOGGER: once_cell::sync::Lazy<Arc<UltraLogger>> =
     });
 
 /// Performance-optimized logging macros for Publisher
-
 #[macro_export]
 macro_rules! log_info {
     ($logger:expr, $fmt:expr $(, $arg:expr)*) => {{

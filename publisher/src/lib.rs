@@ -369,7 +369,7 @@ impl UltraFastPublisher {
         }
 
         // Sort by priority (critical first)
-        messages_to_send.sort_by(|a, b| b.priority.cmp(&a.priority));
+        messages_to_send.sort_by_key(|m| std::cmp::Reverse(m.priority));
 
         let mut connection = self.connection.write().await;
         if let Some(ref mut stream) = *connection {
@@ -386,7 +386,7 @@ impl UltraFastPublisher {
                 buffer.extend_from_slice(&(message.data.len() as u32).to_le_bytes());
                 buffer.extend_from_slice(&message.data);
 
-                if let Err(_) = stream.write_all(&buffer).await {
+                if stream.write_all(&buffer).await.is_err() {
                     self.is_connected.store(false, Ordering::Relaxed);
                     return Err(UltraFastError::NetworkError);
                 }
@@ -395,7 +395,7 @@ impl UltraFastPublisher {
                 self.performance_stats.record_message_sent(latency, buffer.len() as u64);
             }
 
-            if let Err(_) = stream.flush().await {
+            if stream.flush().await.is_err() {
                 self.is_connected.store(false, Ordering::Relaxed);
                 return Err(UltraFastError::NetworkError);
             }

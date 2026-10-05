@@ -78,7 +78,7 @@ async fn test_publisher_config_builder() {
     assert_eq!(config.broker_port, 8080);
     assert_eq!(config.batch_size, 100);
     assert_eq!(config.flush_interval, Duration::from_millis(50));
-    assert_eq!(config.tcp_nodelay, true);
+    assert!(config.tcp_nodelay);
     assert_eq!(config.send_buffer_size, 64 * 1024);
     assert_eq!(config.topics, vec!["topic1".to_string(), "topic2".to_string()]);
     assert_eq!(config.retry_attempts, 3);
@@ -277,7 +277,7 @@ async fn test_publisher_config_defaults() {
     assert_eq!(config.broker_port, 9000);
     assert_eq!(config.batch_size, 1000); // Default batch size
     assert_eq!(config.flush_interval, Duration::from_millis(10)); // Default flush interval
-    assert_eq!(config.tcp_nodelay, true); // Default TCP nodelay
+    assert!(config.tcp_nodelay); // Default TCP nodelay
     assert_eq!(config.send_buffer_size, 65536); // Default send buffer
     assert_eq!(config.topics.len(), 0); // Default empty topics
     assert_eq!(config.retry_attempts, 3); // Default retry attempts
@@ -292,7 +292,7 @@ async fn test_performance_under_load() {
     // Simulate high-load scenario
     let num_operations = 10000;
     for i in 0..num_operations {
-        stats.record_message_sent((i % 1000) as u64, (i % 512) + 256);
+        stats.record_message_sent(i % 1000, (i % 512) + 256);
         if i % 100 == 0 {
             stats.record_connection_failure();
         }
@@ -301,14 +301,14 @@ async fn test_performance_under_load() {
     let duration = start.elapsed();
     let (messages_sent, avg_latency, total_bytes, _, connection_failures, _) = stats.get_stats();
     
-    assert_eq!(messages_sent, num_operations as u64);
-    assert_eq!(connection_failures, (num_operations / 100) as u64);
+    assert_eq!(messages_sent, num_operations);
+    assert_eq!(connection_failures, num_operations / 100);
     
     // Performance assertion - should complete in reasonable time
     assert!(duration.as_millis() < 100, "Operations took too long: {:?}", duration);
     
     // Verify average latency calculation
-    assert!(avg_latency >= 0.0 && avg_latency <= 1000.0);
+    assert!((0.0..=1000.0).contains(&avg_latency));
     
     println!("Completed {} operations in {:?}", num_operations, duration);
     println!("Average latency: {:.2}ns", avg_latency);

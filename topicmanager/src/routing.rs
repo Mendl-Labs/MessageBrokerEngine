@@ -72,6 +72,12 @@ pub struct RoutingStats {
     pub routes_per_message: Vec<usize>, // Histogram of routes per message
 }
 
+impl Default for IntelligentMessageRouter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IntelligentMessageRouter {
     pub fn new() -> Self {
         Self {
@@ -206,7 +212,7 @@ impl IntelligentMessageRouter {
                 RoutingPattern::HashBased { pattern, partition_count } => {
                     if WildMatch::new(pattern).matches(topic) {
                         let hash = fxhash::hash(topic.as_bytes());
-                        (hash as usize % partition_count) == 0 // Simple partitioning
+                        hash.is_multiple_of(*partition_count) // Simple partitioning
                     } else {
                         false
                     }
@@ -353,6 +359,12 @@ pub enum MessageFilter {
     RateLimit { max_per_second: u64 },
 }
 
+impl Default for TopicSubscriptionManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TopicSubscriptionManager {
     pub fn new() -> Self {
         Self {
@@ -422,12 +434,12 @@ impl TopicSubscriptionManager {
         
         // Add to subscriber's subscription list
         subscriptions.entry(subscriber_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(subscription);
         
         // Add to topic -> subscribers mapping
         topic_map.entry(topic_pattern.clone())
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(subscriber_id);
         
         route_info!("Subscriber {} subscribed to topic '{}'", subscriber_id, topic_pattern);
@@ -833,7 +845,7 @@ mod tests {
         
         // Access a very early topic - should be evicted (cache miss)
         let old_topic = "capacity.topic.0";
-        router.route_message(&old_topic, 1, None);
+        router.route_message(old_topic, 1, None);
         
         let _stats_final = router.get_stats();
         // This could be either a hit or miss depending on eviction order

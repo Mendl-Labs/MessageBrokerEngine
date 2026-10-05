@@ -79,7 +79,6 @@ pub static MESSAGE_LOGGER: once_cell::sync::Lazy<Arc<UltraLogger>> =
 
 /// Performance-optimized logging macros for Subscriber
 /// Note: These are sync-safe versions since subscriber may not always have tokio runtime
-
 #[macro_export]
 macro_rules! log_info_sync {
     ($logger:expr, $fmt:expr $(, $arg:expr)*) => {{

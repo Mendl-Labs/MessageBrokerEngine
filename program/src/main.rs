@@ -138,7 +138,7 @@ impl UltraProductionBroker {
         self.bytes_processed.fetch_add(message.payload.len() as u64, Ordering::Relaxed);
         
         let count = self.messages_processed.load(Ordering::Relaxed);
-        if count % 1000 == 0 {
+        if count.is_multiple_of(1000) {
             perf_info!("⚡ Ultra-fast published: {} messages", count);
         }
         Ok(())

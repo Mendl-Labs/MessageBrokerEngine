@@ -167,15 +167,13 @@ impl MessageBufferPool {
     
     /// Get buffer optimized for the required size
     pub fn get_buffer(&self, required_size: usize) -> Vec<u8> {
-        let buffer = if required_size <= self.config.small_buffer_size {
+        if required_size <= self.config.small_buffer_size {
             self.get_small_buffer()
         } else if required_size <= self.config.medium_buffer_size {
             self.get_medium_buffer()
         } else {
             self.get_large_buffer()
-        };
-        
-        buffer
+        }
     }
     
     /// Get a small buffer (1KB)
@@ -235,11 +233,9 @@ impl MessageBufferPool {
                 self.medium_buffers.push(buffer);
                 self.pool_stats.medium_returned.fetch_add(1, Ordering::Relaxed);
             }
-        } else if capacity >= self.config.large_buffer_size {
-            if self.large_buffers.len() < self.config.large_pool_size * 2 {
-                self.large_buffers.push(buffer);
-                self.pool_stats.large_returned.fetch_add(1, Ordering::Relaxed);
-            }
+        } else if capacity >= self.config.large_buffer_size && self.large_buffers.len() < self.config.large_pool_size * 2 {
+            self.large_buffers.push(buffer);
+            self.pool_stats.large_returned.fetch_add(1, Ordering::Relaxed);
         }
         // If buffer doesn't fit any category or pools are full, let it drop
     }

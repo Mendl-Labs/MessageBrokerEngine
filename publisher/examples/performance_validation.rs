@@ -74,7 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("   Total Messages: {}", total_messages);
 
     // Simulate realistic message processing
-    let topics = vec![
+    let topics = [
         "market.data.kraken.level3",
         "market.data.kraken.trades", 
         "market.data.kraken.balances"
@@ -162,11 +162,11 @@ async fn simulate_optimized_publish(message_buffer: &[u8]) {
 fn generate_test_message(sequence: usize) -> Vec<u8> {
     // Generate realistic market data message
     let message = format!(
-        r#"{{"type":"level3","seq":{},"ts":"{}","product":"BTC-USD","side":"{}","oid":"{}","size":"{:.8}","price":"{:.2}"}}"#,
+        r#"{{"type":"level3","seq":{},"ts":"{}","product":"BTC-USD","side":"{}","oid":"order_{}","size":"{:.8}","price":"{:.2}"}}"#,
         sequence,
         chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ"),
-        if sequence % 2 == 0 { "buy" } else { "sell" },
-        format!("order_{}", sequence),
+        if sequence.is_multiple_of(2) { "buy" } else { "sell" },
+        sequence,
         0.01 + (sequence as f64 * 0.001) % 1.0,
         45000.0 + (sequence as f64 * 0.1) % 1000.0
     );
@@ -239,18 +239,18 @@ fn analyze_optimization_results(
 
     // Success criteria validation
     println!("\n✅ OPTIMIZATION SUCCESS CRITERIA:");
-    println!("├─ Latency Target: {} {}", 
+    println!("├─ Latency Target: {} (<{:.1}ms)", 
         if mean_latency < target_latency_ms { "✅ ACHIEVED" } else { "❌ MISSED" },
-        format!("(<{:.1}ms)", target_latency_ms));
-    println!("├─ Improvement: {} {}", 
+        target_latency_ms);
+    println!("├─ Improvement: {} ({:.1}%)", 
         if improvement_percent > 50.0 { "✅ SIGNIFICANT" } else { "⚠️  MODERATE" },
-        format!("({:.1}%)", improvement_percent));
-    println!("├─ Memory Efficiency: {} {}", 
+        improvement_percent);
+    println!("├─ Memory Efficiency: {} ({:.1}%)", 
         if pool_stats.hit_rate() > 0.9 { "✅ EXCELLENT" } else { "⚠️  GOOD" },
-        format!("({:.1}%)", pool_stats.hit_rate() * 100.0));
-    println!("└─ Throughput: {} {}", 
+        pool_stats.hit_rate() * 100.0);
+    println!("└─ Throughput: {} ({:.0} msg/s)", 
         if throughput > 500.0 { "✅ HIGH" } else { "⚠️  MODERATE" },
-        format!("({:.0} msg/s)", throughput));
+        throughput);
 
     // Final assessment
     println!("\n🎯 FINAL ASSESSMENT:");
