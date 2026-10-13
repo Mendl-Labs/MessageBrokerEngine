@@ -678,8 +678,9 @@ impl UltraFastSubscriber {
         }
 
         let address = broker_address_from_env();
-        let stream = TcpStream::connect(&address)
+        let stream = tokio::time::timeout(Duration::from_secs(5), TcpStream::connect(&address))
             .await
+            .map_err(|_| UltraFastError::ConnectionFailed)?
             .map_err(|_| UltraFastError::ConnectionFailed)?;
         let _ = stream.set_nodelay(true);
 
@@ -723,35 +724,47 @@ impl UltraFastSubscriber {
         Ok(())
     }
 
+    /// Bounded the same way `subscribe_after_start` already is: this read
+    /// happens before the reader task starts, directly off the raw socket,
+    /// so a broker that never sends the ACK (dropped connection, crashed
+    /// mid-handshake, or any other silent failure) used to hang this await
+    /// forever -- confirmed live, this is exactly what blocked
+    /// DeploymentSubscriber::start() indefinitely with zero further log
+    /// output. `subscribe_after_start`'s reader-task path already had a 5s
+    /// timeout; this pre-start path did not.
     async fn wait_for_subscribe_ack(&self, _topic_name: &str) -> Result<(), UltraFastError> {
-        let mut reader_guard = self.reader.lock().await;
-        let reader = reader_guard
-            .as_mut()
-            .ok_or(UltraFastError::ConnectionFailed)?;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut reader_guard = self.reader.lock().await;
+            let reader = reader_guard
+                .as_mut()
+                .ok_or(UltraFastError::ConnectionFailed)?;
 
-        let ack_type = reader
-            .read_u8()
-            .await
-            .map_err(|_| UltraFastError::ConnectionFailed)?;
-        if ack_type != 0x03 {
-            return Err(UltraFastError::InvalidMessage);
-        }
+            let ack_type = reader
+                .read_u8()
+                .await
+                .map_err(|_| UltraFastError::ConnectionFailed)?;
+            if ack_type != 0x03 {
+                return Err(UltraFastError::InvalidMessage);
+            }
 
-        let topic_len = reader
-            .read_u32_le()
-            .await
-            .map_err(|_| UltraFastError::ConnectionFailed)? as usize;
-        if topic_len > 1024 {
-            return Err(UltraFastError::InvalidMessage);
-        }
+            let topic_len = reader
+                .read_u32_le()
+                .await
+                .map_err(|_| UltraFastError::ConnectionFailed)? as usize;
+            if topic_len > 1024 {
+                return Err(UltraFastError::InvalidMessage);
+            }
 
-        let mut topic_buf = vec![0u8; topic_len];
-        reader
-            .read_exact(&mut topic_buf)
-            .await
-            .map_err(|_| UltraFastError::ConnectionFailed)?;
+            let mut topic_buf = vec![0u8; topic_len];
+            reader
+                .read_exact(&mut topic_buf)
+                .await
+                .map_err(|_| UltraFastError::ConnectionFailed)?;
 
-        Ok(())
+            Ok(())
+        })
+        .await
+        .map_err(|_| UltraFastError::ConnectionFailed)?
     }
 }
 
